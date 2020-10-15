@@ -114,6 +114,9 @@ function SliceAtlasHotkeyFcn(fig, keydata, f)
         % y -- auto cell detect
     elseif strcmp(keydata.Key,'y')
         ud.pointList = cell_detect(double(ud.current_slice_image(:, :, 2)));
+        if cell_detect_mode == 2
+            ud.pointList{2} = cell_detect(double(ud.current_slice_image(:, :, 1)));
+        end
         disp('Done auto cell detect')
         % n -- new cell group in click cell mode
     elseif strcmp(keydata.Key,'n')

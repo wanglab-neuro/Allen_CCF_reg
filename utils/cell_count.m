@@ -14,12 +14,13 @@ end
 %%% main code %%%
 curr_slice = [];
 curr_angle = [];
+cell_detect_mode = 1; % 2 for red and green channel count %
 for i = 1: length(fnames)
     %%% generate viewers %%%
     close all
     f = figure('Name','Atlas Viewer');
     fs = figure('Name','Slice Viewer');
-    sliceBrowser(fs, pname, f, size(tv), fnames(i));
+    sliceBrowser(fs, pname, f, size(tv), fnames(i), cell_detect_mode);
     f = allenAtlasBrowser(f, tv, av, st, fs, fnames(i), curr_slice, curr_angle);
     waitfor(fs)
     ud = get(f, 'UserData');
