@@ -1,5 +1,6 @@
 # Allen_CCF_reg
 The procedure:
+
 0. Download the [Atlas.zip](https://drive.google.com/file/d/1-s8XfBQZxoolgtlJvwWK4daDHjxN6Jaa/view?usp=sharing) and place it in the main folder of the codes.
 1. Run cell_count.m.
 2. In the atlas viewer, scroll up or down to select the correct slice (AP location).
