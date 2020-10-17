@@ -7,5 +7,5 @@ The procedure:
 4. Press "h" to select the outline you want the slice to be registered to in the atlas viewer (This is to improve the registration accuracy).
 5. Press "p" to open and jump to the slice viewer.
 6. a Press "c" to enter manual mode and then click on the neurons. You will see an updated dot on the slice image if click succeeds.
-6. b Press "y" to enter automatic cell detection mode.
+6. b or Press "y" to enter automatic cell detection mode.
 7. Press "s" to save all the info.
