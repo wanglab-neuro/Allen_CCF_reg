@@ -9,9 +9,8 @@
 1. [Updates](#updates)
 2. [Dependencies](#dependencies)
 3. [Usage](#usage)
-4. [Practical Suggestions](#practical-suggestions)
-5. [References](#references)
-6. [Questions](#questions)
+4. [References](#references)
+5. [Questions](#questions)
 
 
 ## Updates
