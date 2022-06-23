@@ -33,7 +33,18 @@
 ## References
 ***Updates***
 
-Please cite [the journal paper](https://www.biorxiv.org/content/10.1101/2021.02.18.431923v1.abstract) if it helps your research.
+Please cite [the journal paper](https://doi.org/10.7554/eLife.67291) if it helps your research.
+```
+@article{10.7554/eLife.67291,
+  title = {Constructing An Adult Orofacial Premotor Atlas In Allen Mouse CCF},
+  author = {Takatoh, Jun and Park, Jae Hong and Lu, Jinghao and Li, Shun and Thompson, PM and Han, Bao-Xia and Zhao, Shengli and Kleinfeld, David and Friedman, Beth and Wang, Fan},
+  doi = {10.7554/eLife.67291},
+  url = {https://doi.org/10.7554/eLife.67291},
+  journal = {eLife},
+  year = 2021,
+}
+```
+***Archives***
 ```
 @article{takatoh2021constructing,
   title={Constructing An Adult Orofacial Premotor Atlas In Allen Mouse CCF},
@@ -43,8 +54,6 @@ Please cite [the journal paper](https://www.biorxiv.org/content/10.1101/2021.02.
   publisher={Cold Spring Harbor Laboratory}
 }
 ```
-***Archives***
-
 
 ## Questions?
 Please email to [`placeholder`](mailto:placeholder) for additional questions.
