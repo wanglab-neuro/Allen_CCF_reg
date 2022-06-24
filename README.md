@@ -30,9 +30,7 @@
 6. b or Press "y" to enter automatic cell detection mode.
 7. Press "s" to save all the info.
   
-## References
-***Updates***
-
+## Reference
 Please cite [the journal paper](https://doi.org/10.7554/eLife.67291) if it helps your research.
 ```
 @article{10.7554/eLife.67291,
@@ -44,7 +42,7 @@ Please cite [the journal paper](https://doi.org/10.7554/eLife.67291) if it helps
   year = 2021,
 }
 ```
-***Archives***
+***Archive***
 ```
 @article{takatoh2021constructing,
   title={Constructing An Adult Orofacial Premotor Atlas In Allen Mouse CCF},
@@ -54,6 +52,6 @@ Please cite [the journal paper](https://doi.org/10.7554/eLife.67291) if it helps
   publisher={Cold Spring Harbor Laboratory}
 }
 ```
-
+<!-- 
 ## Questions?
-Please email to [`placeholder`](mailto:placeholder) for additional questions.
+Please email to [`placeholder`](mailto:placeholder) for additional questions. -->
