@@ -13,7 +13,9 @@
 <!-- 5. [Questions](#questions) -->
 
 ## Dependencies
-* Curve Fitting Toolbox  
+* Image Processing Toolbox
+* Curve Fitting Toolbox
+* [optional] Parallel Computing Toolbox
 * The function [TVL1denoise](https://www.mathworks.com/matlabcentral/fileexchange/57604-tv-l1-image-denoising-algorithm) is provided in a subdirectory and needs to be in the path.
 
 ## Usage
