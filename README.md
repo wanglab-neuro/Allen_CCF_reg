@@ -29,7 +29,10 @@ Requires the Curve Fitting Toolbox.
 
 ![image](https://user-images.githubusercontent.com/1872756/176929669-26424095-616f-4fc5-8177-1767ac6e7783.png)
 
-4. Press "h" to select the outline you want the slice to be registered to in the atlas viewer (This is to improve the registration accuracy).
+4. Press "h" to draw a polygon around the outline you want the slice to be registered to in the atlas viewer (This is to improve the registration accuracy).
+
+![image](https://user-images.githubusercontent.com/1872756/176953360-6d5f2d7c-ac58-4b84-8c18-c09823a4481d.png)
+
 5. Press "p" to open and jump to the slice viewer.
 6. 
   * Press "c" to enter manual mode and then click on the neurons. You will see an updated dot on the slice image if click succeeds.  
