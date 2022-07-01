@@ -28,6 +28,8 @@ Requires the Curve Fitting Toolbox.
 
 ![image](https://user-images.githubusercontent.com/1872756/176953360-6d5f2d7c-ac58-4b84-8c18-c09823a4481d.png)
 
+After completing the polygon by joining both ends, double-click to validate it. 
+
 5. Press "p" to open and jump to the slice viewer.
 6. 
   * Press "c" to enter manual mode and then click on the neurons. You will see an updated dot on the slice image if click succeeds.  
