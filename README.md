@@ -17,6 +17,7 @@
 * Curve Fitting Toolbox
 * [optional] Parallel Computing Toolbox
 * The function [TVL1denoise](https://www.mathworks.com/matlabcentral/fileexchange/57604-tv-l1-image-denoising-algorithm) is provided in a subdirectory and needs to be in the path.
+* The `utils` directory contains function(s) that overide Matlab's. Place it on top of the path. 
 
 ## Usage
 0. Download the [Atlas.zip](https://drive.google.com/file/d/1-s8XfBQZxoolgtlJvwWK4daDHjxN6Jaa/view?usp=sharing). Unzip the archive and place `AllenAtlas.mat` in the `utils` folder.
@@ -31,6 +32,8 @@
 ![image](https://user-images.githubusercontent.com/1872756/176953360-6d5f2d7c-ac58-4b84-8c18-c09823a4481d.png)
 
 After completing the polygon by joining both ends, double-click to validate it. 
+
+![image](https://user-images.githubusercontent.com/1872756/176968230-96841731-24d7-4c43-8330-3526a0c786e9.png)
 
 5. Press "p" to open and jump to the slice viewer.
 6. 
