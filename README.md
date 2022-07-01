@@ -9,13 +9,8 @@
 1. [Updates](#updates)
 2. [Dependencies](#dependencies)
 3. [Usage](#usage)
-4. [References](#references)
-5. [Questions](#questions)
-
-
-## Updates
-
----
+4. [References](#reference)
+<!-- 5. [Questions](#questions) -->
 
 ## Dependencies
 
@@ -41,7 +36,7 @@ Requires the Curve Fitting Toolbox.
 7. Press "s" to save all the info.
   
 ## Reference
-Please cite [the journal paper](https://doi.org/10.7554/eLife.67291) if it helps your research.
+Please cite [the publication](https://doi.org/10.7554/eLife.67291) if it helps your research.
 ```
 @article{10.7554/eLife.67291,
   title = {Constructing An Adult Orofacial Premotor Atlas In Allen Mouse CCF},
@@ -62,6 +57,11 @@ Please cite [the journal paper](https://doi.org/10.7554/eLife.67291) if it helps
   publisher={Cold Spring Harbor Laboratory}
 }
 ```
+
+## Updates
+
+7/1 Updates to procedure documentation
+
 <!-- 
 ## Questions?
 Please email to [`placeholder`](mailto:placeholder) for additional questions. -->
