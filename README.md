@@ -14,7 +14,7 @@
 
 ## Dependencies
 * Curve Fitting Toolbox  
-* [TVL1denoise](https://www.mathworks.com/matlabcentral/fileexchange/57604-tv-l1-image-denoising-algorithm)
+* The function [TVL1denoise](https://www.mathworks.com/matlabcentral/fileexchange/57604-tv-l1-image-denoising-algorithm) is provided in a subdirectory and needs to be in the path.
 
 ## Usage
 0. Download the [Atlas.zip](https://drive.google.com/file/d/1-s8XfBQZxoolgtlJvwWK4daDHjxN6Jaa/view?usp=sharing). Unzip the archive and place `AllenAtlas.mat` in the `utils` folder.
