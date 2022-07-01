@@ -35,6 +35,8 @@ After completing the polygon by joining both ends, double-click to validate it.
 
 ![image](https://user-images.githubusercontent.com/1872756/176968230-96841731-24d7-4c43-8330-3526a0c786e9.png)
 
+If other sections are too close, as above on the left side, there's a chance the registration will be warped. In that case, edit the image before loading it, to erase the extraneous elements.
+
 5. Press "p" to open and jump to the slice viewer.
 6. 
   * Press "c" to enter manual mode and then click on the neurons. You will see an updated dot on the slice image if click succeeds.  
