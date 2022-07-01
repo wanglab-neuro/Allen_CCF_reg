@@ -26,11 +26,14 @@ Requires the Curve Fitting Toolbox.
 1. Run `cell_count.m` (add code directory to Matlab's path if calling `cell_count` from another directory, e.g., your data folder)
 2. In the atlas viewer, press keyboard arrows to switch between ML, DV and AP adjustment modes.
 3. Use the mouse's scrolling wheel to make required adjustments in each axis.  
+
+![image](https://user-images.githubusercontent.com/1872756/176929669-26424095-616f-4fc5-8177-1767ac6e7783.png)
+
 4. Press "h" to select the outline you want the slice to be registered to in the atlas viewer (This is to improve the registration accuracy).
 5. Press "p" to open and jump to the slice viewer.
 6. 
-  * Press "c" to enter manual mode and then click on the neurons. You will see an updated dot on the slice image if click succeeds.
-  or 
+  * Press "c" to enter manual mode and then click on the neurons. You will see an updated dot on the slice image if click succeeds.  
+  or   
   * Press "y" to enter automatic cell detection mode.
 7. Press "s" to save all the info.
   
