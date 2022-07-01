@@ -19,15 +19,19 @@
 
 ## Dependencies
 
+Requires the Curve Fitting Toolbox.
+
 ## Usage
-0. Download the [Atlas.zip](https://drive.google.com/file/d/1-s8XfBQZxoolgtlJvwWK4daDHjxN6Jaa/view?usp=sharing) and place it in the main folder of the codes.
-1. Run cell_count.m.
-2. In the atlas viewer, scroll up or down to select the correct slice (AP location).
-3. Press UP or DOWN arrow in the key board to adjust ML or DV angle.
+0. Download the [Atlas.zip](https://drive.google.com/file/d/1-s8XfBQZxoolgtlJvwWK4daDHjxN6Jaa/view?usp=sharing). Unzip the archive and place `AllenAtlas.mat` in the `utils` folder.
+1. Run `cell_count.m` (add code directory to Matlab's path if calling `cell_count` from another directory, e.g., your data folder)
+2. In the atlas viewer, press keyboard arrows to switch between ML, DV and AP adjustment modes.
+3. Use the mouse's scrolling wheel to make required adjustments in each axis.  
 4. Press "h" to select the outline you want the slice to be registered to in the atlas viewer (This is to improve the registration accuracy).
 5. Press "p" to open and jump to the slice viewer.
-6. a Press "c" to enter manual mode and then click on the neurons. You will see an updated dot on the slice image if click succeeds.
-6. b or Press "y" to enter automatic cell detection mode.
+6. 
+  * Press "c" to enter manual mode and then click on the neurons. You will see an updated dot on the slice image if click succeeds.
+  or 
+  * Press "y" to enter automatic cell detection mode.
 7. Press "s" to save all the info.
   
 ## Reference
