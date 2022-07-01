@@ -411,15 +411,15 @@ function [D, mask1, mask2] = overlay_slice(f, fs, trans)
 %     imcur = anidenoise(imgcur, 0, 0, 10, 0.2, 2);
     imref = normalize(imgref);
     imcur = normalize(imgcur);
-    [l, n] = bwlabeln(imcur > 0.1);
-    s = zeros(1, n);
-    for k = 1: n
-        t = l == k;
-        s(k) = sum(t(:));
-    end
-    [~, id] = max(s);
-    l = l == id;
-    imcur = imcur .* l;
+% %     [l, n] = bwlabeln(imcur > 0.1);
+% %     s = zeros(1, n);
+% %     for k = 1: n
+% %         t = l == k;
+% %         s(k) = sum(t(:));
+% %     end
+% %     [~, id] = max(s);
+% %     l = l == id;
+% %     imcur = imcur .* l;
 %     imref = imgaussfilt(imgref, 9);
 %     imcur = imgaussfilt(imgcur, 9);
 %     denomref = min(imref(:)) + 0.5 * (max(imref(:)) - min(imref(:))) * normalize(imgaussfilt(TVL1denoise(imref, 0.2, 10), 3));
