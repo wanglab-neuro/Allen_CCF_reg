@@ -176,9 +176,13 @@ function hotkeyFcn(f, fs, keydata, allData, fname)
             sliceBrowser(fs, ud_slice.processed_images_folder, f, size(allData.tv), fname, ud.cell_detect_mode)
         case 's'
             pl = overlay_cell(f, fs, ud);
-            ud.pl = pl;
-            save(fullfile(ud_slice.processed_images_folder, ['cell_points_', ud_slice.processed_image_names{1}(1: end - 4), '.mat']), 'pl')
-            disp('cell points saved');
+            if ~isempty(pl)
+                ud.pl = pl;
+                save(fullfile(ud_slice.processed_images_folder, ['cell_points_', ud_slice.processed_image_names{1}(1: end - 4), '.mat']), 'pl')
+                disp('cell points saved');
+            else
+                disp('cell points not saved');
+            end
         case 'a'
             objectPoints = ud.pl;
             objects = 1: length(objectPoints);
@@ -277,7 +281,13 @@ end
     
 function pl = overlay_cell(f, fs, udf)
     udfs = get(fs, 'UserData');
-    D = udf.D;
+    if ~isfield(udfs,'D')
+        disp('No slice registration found. Press "h" to select the outline you want the slice to be registered to in the atlas viewer')
+        pl=[];
+        return
+    else
+        D = udf.D;
+    end
     thetay = udf.currentAngle(1);
     thetaz = udf.currentAngle(2);
     h1 = udf.mask1;
