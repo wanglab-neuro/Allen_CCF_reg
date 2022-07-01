@@ -166,11 +166,7 @@ function hotkeyFcn(f, fs, keydata, allData, fname)
 % %             trans = double(roipoly(uint8(ud.ref)));
             fcur = imagesc(uint8(ud.ref));
             temp = drawpolygon;
-            if size(temp.Position, 1) > 1
-                trans = double(roipoly(uint8(ud.ref), temp.Position(:, 1), temp.Position(:, 2)));
-            else
-                trans = true(size(ud.ref));
-            end
+            if s(temp.Position
             if isempty(trans)
                 trans = true(size(ud.ref));
             end
