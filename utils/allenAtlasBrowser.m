@@ -464,8 +464,8 @@ function [D, mask1, mask2] = overlay_slice(f, fs, trans)
     image_blend =  imfuse(imgref * 4, tp * 4, 'blend', 'Scaling', 'none');
     set(udf.im, 'CData', image_blend);
     imshow(image_blend)
-%     udf.D = D;
-%     set(f, 'UserData', udf);
+    udf.D = D;
+    set(f, 'UserData', udf);
 end
 
 function trans = slice_trans(f, fs)
