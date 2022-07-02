@@ -306,7 +306,7 @@ function pl = overlay_cell(f, fs, udf)
         pr = zeros(size(pp{ii}, 1), 3);
         for j = 1: size(pp{ii}, 1)
             mtx = zeros(size(udfs.current_slice_image(:, :, 1)));
-            idd = sub2ind(size(udfs.current_slice_image), round(pp{ii}(j, 1)), round(pp{ii}(j, 2)));
+            idd = sub2ind(size(udfs.current_slice_image), round(pp{ii}(j, 2)), round(pp{ii}(j, 1)));
             mtx(idd) = 1;
             mtx = mtx(h1(1): h1(2), h1(3): h1(4));
             mtx = imresize(mtx, [h2(2) - h2(1) + 1, h2(4) - h2(3) + 1]);
@@ -418,15 +418,15 @@ function [D, mask1, mask2] = overlay_slice(f, fs, trans)
 %     imcur = anidenoise(imgcur, 0, 0, 10, 0.2, 2);
     imref = normalize(imgref);
     imcur = normalize(imgcur);
-% %     [l, n] = bwlabeln(imcur > 0.1);
-% %     s = zeros(1, n);
-% %     for k = 1: n
-% %         t = l == k;
-% %         s(k) = sum(t(:));
-% %     end
-% %     [~, id] = max(s);
-% %     l = l == id;
-% %     imcur = imcur .* l;
+    [l, n] = bwlabeln(imcur > 0.1);
+    s = zeros(1, n);
+    for k = 1: n
+        t = l == k;
+        s(k) = sum(t(:));
+    end
+    [~, id] = max(s);
+    l = l == id;
+    imcur = imcur .* l;
 %     imref = imgaussfilt(imgref, 9);
 %     imcur = imgaussfilt(imgcur, 9);
 %     denomref = min(imref(:)) + 0.5 * (max(imref(:)) - min(imref(:))) * normalize(imgaussfilt(TVL1denoise(imref, 0.2, 10), 3));

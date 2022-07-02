@@ -31,44 +31,48 @@ function analyze_cell_count(fname, pname, av, tv, st)
         id = tmp(:, 1) >= 0 & tmp(:, 1) <= 1140 & tmp(:, 2) >= 0 & tmp(:, 2) <= 800 & tmp(:, 3) >= 0 & tmp(:, 3) <= 1320;
         pls{i} = pls{i}(id, :);
     end
-
+    
     [roi_table, roi_table_group] = summary_table(pls, av, st);
+    roi_table{1}.ML_location = -1.*roi_table{1}.ML_location % added 20210330
+    
+    
     save([pname, 'table_summary', fnames{1}(1: end - 4), '.mat'], 'roi_table', 'roi_table_group')
 
-    %% reconstruction %%
-    %%% get 3-perspective map %%%
-    cls = [1 1 1; 1 .75 0;  .3 1 1; .4 .6 .2; 1 .35 .65; .7 .7 1; .65 .4 .25; .7 .95 .3; .7 0 0; .5 0 .6; 1 .6 0];
-    figure(1)
-    clf
-    %%% coronal %%%
-    subplot(1, 3, 1)
-    islice = unique(round(cell2mat(cellfun(@(x) squeeze(x(:, 3)), pls, 'uniformoutput', false))));
-    imagesc(squeeze(mean(tv(islice, :, :), 1)))
-    hold on
-    for ii = 1: length(pls)
-        plot(pls{ii}(:, 1), pls{ii}(:, 2), '.', 'color', cls(ii, :), 'markersize', 8)
-    end
-    hold off
-
-    %%% tangential %%%
-    subplot(1, 3, 2)
-    islice = unique(round(cell2mat(cellfun(@(x) squeeze(x(:, 2)), pls, 'uniformoutput', false))));
-    imagesc(squeeze(mean(tv(:, islice, :), 2))')
-    hold on
-    for ii = 1: length(pls)
-        plot(pls{ii}(:, 3), pls{ii}(:, 1), '.', 'color', cls(ii, :), 'markersize', 8)
-    end
-    hold off
-
-    %%% sagittal %%%
-    subplot(1, 3, 3)
-    islice = unique(round(cell2mat(cellfun(@(x) squeeze(x(:, 1)), pls, 'uniformoutput', false))));
-    imagesc(squeeze(mean(tv(:, :, islice), 3))')
-    hold on
-    for ii = 1: length(pls)
-        plot(pls{ii}(:, 3), pls{ii}(:, 2), '.', 'color', cls(ii, :), 'markersize', 8)
-    end
-    hold off
-    print([pname, 'three_view'], '-dtiff')
-    savefig([pname, 'three_view.fig'])
+    %%
+%     %% reconstruction %% % remove this later
+%     %%% get 3-perspective map %%%
+%     cls = [1 1 1; 1 .75 0;  .3 1 1; .4 .6 .2; 1 .35 .65; .7 .7 1; .65 .4 .25; .7 .95 .3; .7 0 0; .5 0 .6; 1 .6 0];
+%     figure(1)
+%     clf
+%     %%% coronal %%%
+%     subplot(1, 3, 1)
+%     islice = unique(round(cell2mat(cellfun(@(x) squeeze(x(:, 3)), pls, 'uniformoutput', false))));
+%     imagesc(squeeze(mean(tv(islice, :, :), 1)))
+%     hold on
+%     for ii = 1: length(pls)
+%         plot(pls{ii}(:, 1), pls{ii}(:, 2), '.', 'color', cls(ii, :), 'markersize', 8)
+%     end
+%     hold off
+% 
+%     %%% tangential %%%
+%     subplot(1, 3, 2)
+%     islice = unique(round(cell2mat(cellfun(@(x) squeeze(x(:, 2)), pls, 'uniformoutput', false))));
+%     imagesc(squeeze(mean(tv(:, islice, :), 2))')
+%     hold on
+%     for ii = 1: length(pls)
+%         plot(pls{ii}(:, 3), pls{ii}(:, 1), '.', 'color', cls(ii, :), 'markersize', 8)
+%     end
+%     hold off
+% 
+%     %%% sagittal %%%
+%     subplot(1, 3, 3)
+%     islice = unique(round(cell2mat(cellfun(@(x) squeeze(x(:, 1)), pls, 'uniformoutput', false))));
+%     imagesc(squeeze(mean(tv(:, :, islice), 3))')
+%     hold on
+%     for ii = 1: length(pls)
+%         plot(pls{ii}(:, 3), pls{ii}(:, 2), '.', 'color', cls(ii, :), 'markersize', 8)
+%     end
+%     hold off
+%     print([pname, 'three_view'], '-dtiff')
+%     savefig([pname, 'three_view.fig'])
 end
