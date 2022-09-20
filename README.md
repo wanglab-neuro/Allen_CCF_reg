@@ -12,6 +12,10 @@
 4. [References](#reference)
 <!-- 5. [Questions](#questions) -->
 
+## Updates
+09/20/2022 Semi-auto slice localization and auto cell detection uploaded [alpha test]
+7/1 Updates to procedure documentation
+
 ## Dependencies
 * Image Processing Toolbox
 * Curve Fitting Toolbox
@@ -66,10 +70,6 @@ Please cite [the publication](https://doi.org/10.7554/eLife.67291) if it helps y
   publisher={Cold Spring Harbor Laboratory}
 }
 ```
-
-## Updates
-
-7/1 Updates to procedure documentation
 
 <!-- 
 ## Questions?
