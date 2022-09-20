@@ -307,7 +307,10 @@ classdef cellcount
             tic
             ns = size(imgs, 3);
             rlocs = zeros(ns, 4);
-            for i = 1: ns
+            if isempty(gcp('nocreate'))
+                parpool(feature('numCores'));
+            end
+            parfor i = 1: ns
                 [cst, sst, mit, rloc, kst] = cc.mea_cal_unit(cc, imgs(:, :, i), opt);
                 cs(i) = cst;
                 ss(i) = sst;
