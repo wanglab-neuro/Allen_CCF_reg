@@ -14,6 +14,7 @@
 
 ## Updates
 09/20/2022 Semi-auto slice localization and auto cell detection uploaded [alpha test]
+
 7/1 Updates to procedure documentation
 
 ## Dependencies
