@@ -1,16 +1,16 @@
 %%% parameters %%%
+cc = cellcount();
 lens_flag = true;
 [file_name, path_name] = cc.data_info();
-cc.pname = path_name;
+cc.metadata.pname = path_name;
 
-%%%% if you want a pop up window, use this: %%%%
-nlist = cc.section_list(length(file_name));
+% %%%% if you want a pop up window, use this: %%%%
+% nlist = cc.section_list(length(file_name));
 
 %%%% if not, put numbers in here (and don't run the above line): %%%%
-nlist = [];
+nlist = [570: 8: 632];
 
 %%% initialize %%%
-cc = cellcount();
 [tv, av, st] = cc.load_ccf();
 [cc, ref] = cc.prep_ccf(tv);
 
@@ -18,7 +18,7 @@ cc = cellcount();
 for i = 1: length(file_name)
     %%% load slice %%%
     fname = file_name{i};
-    slo = cc.load_slice(fname);
+    slo = cc.load_slice([cc.metadata.pname, fname]);
     
     %%% pyramid size selection %%%
     sl = cc.prep_slice(slo);
@@ -60,21 +60,40 @@ for i = 1: length(file_name)
     end
     
     %%% metadata compile %%%
-    cc.pyramid_size{i} = gpy;
-    cc.angles{i} = angles;
-    cc.point_lists{i} = pl;
-    cc.point_lists_new{i} = pln;
-    cc.point_lists_3d{i} = pl3;
-    cc.lens_point_lists{i} = pll;
-    cc.lens_point_lists_3d{i} = pll3;
-    cc.section_location{i} = rlocn;
-    cc.reg_image{i} = img;
-    cc.displacement{i} = D;
-    cc.reg_ref_image{i} = imr;
-    cc.coordf{i} = coordf;
-    cc.fnames{i} = fname;
-    
-    %%% save data %%%
-    cc.save(cc);
+    metadata.pyramid_size{i} = gpy;
+    metadata.angles{i} = angles;
+    metadata.point_lists{i} = pl;
+    metadata.point_lists_new{i} = pln;
+    metadata.point_lists_3d{i} = pl3;
+    metadata.lens_point_lists{i} = pll;
+    metadata.lens_point_lists_3d{i} = pll3;
+    metadata.lens_mask{i} = mask;
+    metadata.section_location{i} = rlocn;
+    metadata.reg_image{i} = img;
+    metadata.displacement{i} = D;
+    metadata.reg_ref_image{i} = imr;
+    metadata.coordf{i} = coordf;
+    metadata.fnames{i} = fname;
 end
+
+%%% pass metadata %%%
+cc.metadata = metadata;
+cc.metadata.pname = path_name;
+
+%%% save data %%%
+cc.save(cc);
+
+%% analyzing lens location %%
+n = length(cc.metadata.reg_image);
+masks = cell(n, 1);
+pls = cell(n, 1);
+for i = 1: n
+    [mask, pll] = cc.lens_loc(cc.metadata.reg_image{i}, cc.metadata.reg_ref_image{i}, cc.metadata.section_location{i});
+    pll3 = cc.cell3d(pll, cc.metadata.coordf{i});
+    masks{i} = mask;
+    pls{i} = pll3;
+end
+
+
+
 

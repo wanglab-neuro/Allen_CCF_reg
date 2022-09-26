@@ -1,6 +1,7 @@
 classdef cellcount
     properties
         ccf = [];
+        metadata = [];
     end
     
     methods
@@ -37,7 +38,7 @@ classdef cellcount
             %%% parameters %%%
             lens_flag = true;
             [file_name, path_name] = cc.data_info();
-            cc.pname = path_name;
+            cc.metadata.pname = path_name;
             
             %%%% if you want a pop up window, use this: %%%%
             nlist = cc.section_list(length(file_name));
@@ -51,6 +52,7 @@ classdef cellcount
             [cc, ref] = cc.prep_ccf(tv);
             
             %%% main loop per slice %%%
+            metadata = struct();
             for i = 1: length(file_name)
                 %%% load slice %%%
                 fname = file_name{i};
@@ -96,23 +98,27 @@ classdef cellcount
                 end
                 
                 %%% metadata compile %%%
-                cc.pyramid_size{i} = gpy;
-                cc.angles{i} = angles;
-                cc.point_lists{i} = pl;
-                cc.point_lists_new{i} = pln;
-                cc.point_lists_3d{i} = pl3;
-                cc.lens_point_lists{i} = pll;
-                cc.lens_point_lists_3d{i} = pll3;
-                cc.section_location{i} = rlocn;
-                cc.reg_image{i} = img;
-                cc.displacement{i} = D;
-                cc.reg_ref_image{i} = imr;
-                cc.coordf{i} = coordf;
-                cc.fnames{i} = fname;
-                
-                %%% save data %%%
-                cc.save(cc);
+                metadata.pyramid_size{i} = gpy;
+                metadata.angles{i} = angles;
+                metadata.point_lists{i} = pl;
+                metadata.point_lists_new{i} = pln;
+                metadata.point_lists_3d{i} = pl3;
+                metadata.lens_point_lists{i} = pll;
+                metadata.lens_point_lists_3d{i} = pll3;
+                metadata.lens_mask{i} = mask;
+                metadata.section_location{i} = rlocn;
+                metadata.reg_image{i} = img;
+                metadata.displacement{i} = D;
+                metadata.reg_ref_image{i} = imr;
+                metadata.coordf{i} = coordf;
+                metadata.fnames{i} = fname;
             end
+            
+            %%% pass metadata %%%
+            cc.metadata = metadata;
+            
+            %%% save data %%%
+            cc.save(cc);
 
         end
         
@@ -139,9 +145,22 @@ classdef cellcount
         function imgo = prep_slice(img)
             a = normalize(double(img));
             b = normalize(a(:, :, 3));
-            b1 = imgaussfilt(b, floor(min(size(b)) / 100));
-            b2 = sum(b1 > 0.1, 1);
-            b3 = sum(b1 > 0.1, 2);
+%             b1 = imgaussfilt(b, floor(min(size(b)) / 100));
+%             b1t = normalize(b1) > 0.1;
+            b1t = normalize(b) > 0.1;
+            b1t = imfill(b1t, 'holes');
+            [l, n] = bwlabeln(b1t);
+            s = zeros(1, n);
+            for i = 1: n
+                tmp = l == i;
+                s(i) = sum(tmp(:));
+            end
+            [~, id] = max(s);
+            b1 = l == id;
+%             b2 = sum(b1 > 0.1, 1);
+%             b3 = sum(b1 > 0.1, 2);
+            b2 = sum(b1, 1);
+            b3 = sum(b1, 2);
             bb = a(find(b3, 1): find(b3, 1, 'last'), find(b2, 1): find(b2, 1, 'last'), :);
             imgo = normalize(bb);
         end
@@ -714,30 +733,128 @@ classdef cellcount
         end
         
         function save(cc)
-            fn = [cc.pname, filesep, 'cell_count_results.mat'];
+            fn = [cc.metadata.pname, filesep, 'cell_count_results.mat'];
             save(fn, 'cc')
         end
         
-        function [mask, pll] = lens_loc(cc, img, imr, rlocn)
+        function [mask, pll] = lens_loc(img, imr, rlocn)
+            nthres = 50;
+            ps = 5;
+            sthres = size(img, 1) / 2;
+            fthres = 10;
+            stthres = 0.5;
             t = imr(rlocn(1): rlocn(2), rlocn(3): rlocn(4));
-            t1 = cc.opt_exp(cc, t, img(:, :, 3));
-            t2 = cc.opt_exp(cc, img(:, :, 3), t1);
-            m1 = imfill(t1 > 0.01, 'holes');
-            m2 = imfill(t2 > 0.01, 'holes');
-            mask1 = xor(m1, m2);
-            mask2 = imopen(mask1, strel('disk', 5));
-            [l, n] = bwlabeln(mask2);
+%             t1 = cc.opt_exp(cc, t, img(:, :, 3));
+%             t2 = cc.opt_exp(cc, img(:, :, 3), t);
+            t2 = normalize(imgaussfilt(normalize(TVL1denoise(normalize(img(:, :, 3)), 0.2, 40)), 5));
+            
+            %%%%%%% need to reduce nonrelevant regions %%%%%%%%%%
+            m1 = normalize(t) > 0.1;
+            m2 = t2 > 0.1;
+            r1 = imfill(m1 > 0.01, 'holes');
+            r2 = imfill(m2 > 0.01, 'holes');
+            r2r = padarray(r2, [ps, ps], 0, 'both');
+            r1t = padarray(r1, [ps, ps], 0, 'both');
+            r2t = padarray(t2, [ps, ps], 0, 'both');
+            r2t = imgaussfilt(r2t, 3);
+            rf1 = imerode(r1t, strel('disk', 5));
+            [l, n] = bwlabeln(rf1);
             s = zeros(n, 1);
             for i = 1: n
                 tmp = l == i;
                 s(i) = sum(tmp(:));
             end
             [~, id] = max(s);
-            mask = l == id;
+            rf1 = l == id;
+            bw = activecontour(r2t, rf1, 500, 'Chan-Vese', 'smoothfactor', 50);
+            bw = imerode(bw, strel('disk', 5));
+            bd1 = bwboundaries(bw);
+            id = bd1{1}(:, 1) < size(img, 1) / 2 + ps;
+            pt = bd1{1}(id, :);
+            rf1t = griddedInterpolant(double(r2r));
+            b1 = rf1t(pt);
+            s = sum(~b1);
+            
+            if s < fthres
+                %%% for incontinuous/inside opening %%%
+                h1 = imerode(~m1 & rf1(ps: end - ps - 1, ps: end - ps - 1), strel('disk', 10));
+                h1 = imdilate(h1, strel('disk', 10));
+%                 h2 = ~m2 & (r1 | r2);
+                h2 = ~m2 & r2;
+                hh = h1 + h2;
+                [l, n] = bwlabeln(h2);
+                s = zeros(n, 2);
+                for i = 1: n
+                    tmpt = l == i;
+                    tmp = hh(tmpt);
+                    nn = max(tmp(:));
+                    [y, x] = find(tmpt);
+                    s(i, 2: 3) = [mean(y), length(y)];
+                    if nn == 1
+                        s(i, 1) = 1;
+                    else
+                        st = sum(sum(tmp > 1)) / s(i, 3);
+                        if st < stthres
+                            s(i, 1) = 1;
+                        end
+                    end
+                end
+                id1 = s(:, 3) > nthres;
+                id2 = s(:, 2) < sthres;
+                id1t = find(s(:, 1) & id1 & id2);
+                [~, id] = max(s(id1t, 2));
+                id = id1t(id);
+                if ~isempty(id)
+                    mask = l == id;
+                else
+                    mask = isnan(l);
+                end
+            else
+                %%% for open lesion %%%
+                h1 = ~m2 & bw(ps: end - ps - 1, ps: end - ps - 1);
+                tmpt = false(size(h1));
+                tmpt(sub2ind(size(tmpt), pt(:, 1), pt(:, 2))) = true;
+                hh = tmpt + h1;
+                [l, n] = bwlabeln(h1);
+                h2 = false(size(tmpt));
+                for i = 1: n
+                    tmp = l == i;
+                    tt = max(hh(tmp));
+                    if tt > 1
+                        h2 = h2 | tmp;
+                    end
+                end
+                
+                [l, n] = bwlabeln(h2);
+                s = zeros(n, 2);
+                for i = 1: n
+                    tmp = l == i;
+                    [y, x] = find(tmp);
+                    s(i, :) = [mean(y), length(y)];
+                end
+                id1 = s(:, 2) > nthres;
+                id2 = s(:, 1) < sthres;
+                id1t = find(id1 & id2);
+                [~, id] = max(s(id1t, 2));
+                id = id1t(id);
+                mask = l == id;
+            end
+            
             [h, w] = find(mask);
             pll = [h + rlocn(1), w + rlocn(3)];
         end
-
+        
+        function locf = lens_recon(cc)
+            %%% has to have a series of slices with lens lesion %%%
+            n = length(cc.metadata.lens_mask);
+            pll3 = cc.metadata.lens_point_lists_3d;
+            t = zeros(n, 3);
+            for i = 1: n
+                ctr = mean(pll3{i}, 1);
+                t(i, :) = ctr;
+            end
+        end
+        
         %% aux functions: utility %%
         function [img, xform] = klt2_reg(cc, imref, imcur, flag, maskc, pps)
             if nargin < 4
