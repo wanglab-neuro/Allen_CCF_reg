@@ -8,30 +8,32 @@ cc.metadata.pname = path_name;
 % nlist = cc.section_list(length(file_name));
 
 %%%% if not, put numbers in here (and don't run the above line): %%%%
-nlist = [570: 8: 632];
+% nlist = [570: 8: 632];
+nlist = [678: 8: 742];
 
 %%% initialize %%%
 [tv, av, st] = cc.load_ccf();
 [cc, ref] = cc.prep_ccf(tv);
 
 %%% main loop per slice %%%
-for i = 1: length(file_name)
-    %%% load slice %%%
-    fname = file_name{i};
-    slo = cc.load_slice([cc.metadata.pname, fname]);
+cc = cc.load(cc);
+
+if isempty(cc)
+    %%% load slices %%%
+    cc = cc.load_slice(cc, file_name);
     
     %%% pyramid size selection %%%
-    sl = cc.prep_slice(slo);
+    sl = cc.metadata.slice;
     ref_flag = 1;
-    n = nlist(i);
-    [gpy, loc, rsclp] = cc.find_loc_pyramid(cc, ref, sl(:, :, 3), ref_flag, n);
+    [gpy, loc, rsclp] = cc.find_loc_pyramid(cc, ref, sl, ref_flag, nlist);
     
     %%% coarse selection %%%
-    idf = cc.find_loc_coarse(cc, ref, sl(:, :, 3), ref_flag, n, gpy, loc, rsclp);
+    idf = cc.find_loc_coarse(cc, ref, sl, ref_flag, nlist, gpy, loc, rsclp);
     
     %%% fine/rotate selection %%%
     rtl = size(tv, 2) / size(ref, 1);
-    [theta, gamma, ap, rloc, imref] = cc.find_loc_fine(cc, ref, sl(:, :, 3), ref_flag, idf, gpy, loc, rtl, rsclp);
+    cct = cellcount();
+    [theta, gamma, ap, rloc, imref] = cc.find_loc_fine(cct, ref, sl, ref_flag, idf, gpy, loc, rtl, rsclp);
     
     %%% nonrigid register %%%
     angles = struct('theta', theta, 'gamma', gamma, 'ap', ap + idf);
@@ -39,60 +41,60 @@ for i = 1: length(file_name)
     
     %%% Detect labeled neurons %%%
     opt.vis = false;
-    %                 opt.vis = true;
-    pl = cc.cell_detect(cc, sl(:, :, 2), opt);
+    % opt.vis = true;
+    pl = cc.cell_detect(cc, sl, opt);
     
     %%% transform detected neurons %%%
-    opt.stv = size(img);
-    opt.ssl = size(sl);
+    opt.stv = cellfun(@size, img, 'uniformoutput', false);
+    opt.ssl = cellfun(@size, sl, 'uniformoutput', false);
     pln = cc.cell_transform(D, pl, rlocn, opt);
     
     %%% get 3d final point list %%%
     pl3 = cc.cell3d(pln, coordf);
     
-    if lens_flag
-        %%% find lens lesion %%%
-        [mask, pll] = cc.lens_loc(cc, img, imr, rlocn);
-        pll3 = cc.cell3d(pll, coordf);
-    else
-        pll = NaN;
-        pll3 = NaN;
-    end
-    
     %%% metadata compile %%%
-    metadata.pyramid_size{i} = gpy;
-    metadata.angles{i} = angles;
-    metadata.point_lists{i} = pl;
-    metadata.point_lists_new{i} = pln;
-    metadata.point_lists_3d{i} = pl3;
-    metadata.lens_point_lists{i} = pll;
-    metadata.lens_point_lists_3d{i} = pll3;
-    metadata.lens_mask{i} = mask;
-    metadata.section_location{i} = rlocn;
-    metadata.reg_image{i} = img;
-    metadata.displacement{i} = D;
-    metadata.reg_ref_image{i} = imr;
-    metadata.coordf{i} = coordf;
-    metadata.fnames{i} = fname;
+    metadata.slice = sl;
+    metadata.pyramid_size = gpy;
+    metadata.angles = angles;
+    metadata.point_lists = pl;
+    metadata.point_lists_new = pln;
+    metadata.point_lists_3d = pl3;
+    metadata.section_location = rlocn;
+    metadata.reg_image = img;
+    metadata.displacement = D;
+    metadata.reg_ref_image = imr;
+    metadata.coordf = coordf;
+    metadata.fnames = file_name;
+    
+    %%% pass metadata %%%
+    cc.metadata = metadata;
+    cc.metadata.pname = path_name;
+    
+    %%% save data %%%
+    cc.save(cc);
 end
 
-%%% pass metadata %%%
-cc.metadata = metadata;
-cc.metadata.pname = path_name;
+if lens_flag
+    %%% find lens lesion %%%
+    img = cc.metadata.reg_image;
+    imr = cc.metadata.reg_ref_image;
+    rlocn = cc.metadata.section_location;
+    coordf = cc.metadata.coordf;
+    [mask, pll] = cc.lens_loc(cc, img, imr, rlocn);
+    pll3 = cc.cell3d(pll, coordf);
+else
+    pll = NaN;
+    pll3 = NaN;
+end
 
-%%% save data %%%
-cc.save(cc);
+%%% lens data compile %%%
+lensdata.point_lists = pll;
+lensdata.point_lists_3d = pll3;
+lensdata.mask = mask;
+cc.save(cc, lensdata)
 
 %% analyzing lens location %%
-n = length(cc.metadata.reg_image);
-masks = cell(n, 1);
-pls = cell(n, 1);
-for i = 1: n
-    [mask, pll] = cc.lens_loc(cc.metadata.reg_image{i}, cc.metadata.reg_ref_image{i}, cc.metadata.section_location{i});
-    pll3 = cc.cell3d(pll, cc.metadata.coordf{i});
-    masks{i} = mask;
-    pls{i} = pll3;
-end
+model = cc.lens_recon(cc, lensdata);
 
 
 

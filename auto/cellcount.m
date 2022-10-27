@@ -36,40 +36,41 @@ classdef cellcount
     
         function cell_count(cc)
             %%% parameters %%%
+            cc = cellcount();
             lens_flag = true;
             [file_name, path_name] = cc.data_info();
             cc.metadata.pname = path_name;
             
-            %%%% if you want a pop up window, use this: %%%%
-            nlist = cc.section_list(length(file_name));
+            % %%%% if you want a pop up window, use this: %%%%
+            % nlist = cc.section_list(length(file_name));
             
             %%%% if not, put numbers in here (and don't run the above line): %%%%
-            nlist = [];
+            % nlist = [570: 8: 632];
+            nlist = [678: 8: 742];
             
             %%% initialize %%%
-            cc = cellcount();
             [tv, av, st] = cc.load_ccf();
             [cc, ref] = cc.prep_ccf(tv);
             
             %%% main loop per slice %%%
-            metadata = struct();
-            for i = 1: length(file_name)
-                %%% load slice %%%
-                fname = file_name{i};
-                slo = cc.load_slice(fname);
+            cc = cc.load(cc);
+            
+            if isempty(cc)
+                %%% load slices %%%
+                cc = cc.load_slice(cc, file_name);
                 
                 %%% pyramid size selection %%%
-                sl = cc.prep_slice(slo);
+                sl = cc.metadata.slice;
                 ref_flag = 1;
-                n = nlist(i);
-                [gpy, loc, rsclp] = cc.find_loc_pyramid(cc, ref, sl(:, :, 3), ref_flag, n);
+                [gpy, loc, rsclp] = cc.find_loc_pyramid(cc, ref, sl, ref_flag, nlist);
                 
                 %%% coarse selection %%%
-                idf = cc.find_loc_coarse(cc, ref, sl(:, :, 3), ref_flag, n, gpy, loc, rsclp);
+                idf = cc.find_loc_coarse(cc, ref, sl, ref_flag, nlist, gpy, loc, rsclp);
                 
                 %%% fine/rotate selection %%%
                 rtl = size(tv, 2) / size(ref, 1);
-                [theta, gamma, ap, rloc, imref] = cc.find_loc_fine(cc, ref, sl(:, :, 3), ref_flag, idf, gpy, loc, rtl, rsclp);
+                cct = cellcount();
+                [theta, gamma, ap, rloc, imref] = cc.find_loc_fine(cct, ref, sl, ref_flag, idf, gpy, loc, rtl, rsclp);
                 
                 %%% nonrigid register %%%
                 angles = struct('theta', theta, 'gamma', gamma, 'ap', ap + idf);
@@ -77,49 +78,60 @@ classdef cellcount
                 
                 %%% Detect labeled neurons %%%
                 opt.vis = false;
-                %                 opt.vis = true;
-                pl = cc.cell_detect(cc, sl(:, :, 2), opt);
+                % opt.vis = true;
+                pl = cc.cell_detect(cc, sl, opt);
                 
                 %%% transform detected neurons %%%
-                opt.stv = size(img);
-                opt.ssl = size(sl);
+                opt.stv = cellfun(@size, img, 'uniformoutput', false);
+                opt.ssl = cellfun(@size, sl, 'uniformoutput', false);
                 pln = cc.cell_transform(D, pl, rlocn, opt);
                 
                 %%% get 3d final point list %%%
                 pl3 = cc.cell3d(pln, coordf);
                 
-                if lens_flag
-                    %%% find lens lesion %%%
-                    [mask, pll] = cc.lens_loc(cc, img, imr, rlocn);
-                    pll3 = cc.cell3d(pll, coordf);
-                else
-                    pll = NaN;
-                    pll3 = NaN;
-                end
-                
                 %%% metadata compile %%%
-                metadata.pyramid_size{i} = gpy;
-                metadata.angles{i} = angles;
-                metadata.point_lists{i} = pl;
-                metadata.point_lists_new{i} = pln;
-                metadata.point_lists_3d{i} = pl3;
-                metadata.lens_point_lists{i} = pll;
-                metadata.lens_point_lists_3d{i} = pll3;
-                metadata.lens_mask{i} = mask;
-                metadata.section_location{i} = rlocn;
-                metadata.reg_image{i} = img;
-                metadata.displacement{i} = D;
-                metadata.reg_ref_image{i} = imr;
-                metadata.coordf{i} = coordf;
-                metadata.fnames{i} = fname;
+                metadata.slice = sl;
+                metadata.pyramid_size = gpy;
+                metadata.angles = angles;
+                metadata.point_lists = pl;
+                metadata.point_lists_new = pln;
+                metadata.point_lists_3d = pl3;
+                metadata.section_location = rlocn;
+                metadata.reg_image = img;
+                metadata.displacement = D;
+                metadata.reg_ref_image = imr;
+                metadata.coordf = coordf;
+                metadata.fnames = file_name;
+                
+                %%% pass metadata %%%
+                cc.metadata = metadata;
+                cc.metadata.pname = path_name;
+                
+                %%% save data %%%
+                cc.save(cc);
             end
             
-            %%% pass metadata %%%
-            cc.metadata = metadata;
+            if lens_flag
+                %%% find lens lesion %%%
+                img = cc.metadata.reg_image;
+                imr = cc.metadata.reg_ref_image;
+                rlocn = cc.metadata.section_location;
+                coordf = cc.metadata.coordf;
+                [mask, pll] = cc.lens_loc(cc, img, imr, rlocn);
+                pll3 = cc.cell3d(pll, coordf);
+            else
+                pll = NaN;
+                pll3 = NaN;
+            end
             
-            %%% save data %%%
-            cc.save(cc);
-
+            %%% lens data compile %%%
+            lensdata.point_lists = pll;
+            lensdata.point_lists_3d = pll3;
+            lensdata.mask = mask;
+            cc.save(cc, lensdata)
+            
+%             %% analyzing lens location %%
+%             model = cc.lens_recon(cc, lensdata);
         end
         
         %% aux functions: main procedure %%
@@ -138,7 +150,7 @@ classdef cellcount
             nlist = nlist{1};
         end
         
-        function img = load_slice(fname)
+        function img = load_slice_unit(fname)
             img = imread(fname);
         end
         
@@ -165,11 +177,28 @@ classdef cellcount
             imgo = normalize(bb);
         end
         
+        function imgs = select_chan(img, nchan)
+            if nargin < 2 || isempty(nchan)
+                nchan = 3;
+            end
+            
+            if iscell(img)
+                if size(img{1}, 3) > 1
+                    imgs = cellfun(@(x) x(:, :, nchan), img, 'uniformoutput', false);
+                end
+            else
+                imgs = {img(:, :, nchan)};
+            end
+        end
+        
         function [gpy, loc, rscl] = find_loc_pyramid(cc, ref, img, ref_flag, n)
             %%% parameters %%%
             if nargin < 4 || isempty(ref_flag)
                 ref_flag = 1;
             end
+            
+            img = cc.select_chan(img);
+            
             rt = linspace(0.3, 1, 40);
             istep = 0.5; %%% mm %%%
             res = 0.01; %% mm %%
@@ -177,49 +206,88 @@ classdef cellcount
             [nh, nw, nn] = size(ref);
             srg = 5;
             if nargin < 5 || isempty(n)
-                rg = 2: istepf: nn - 1;
+                rg = repmat(2: istepf: nn - 1, length(img), 1);
             else
-                rg = max(2, n - srg): min(nn - 1, n + srg);
+                rg = NaN(length(n), 2 * srg + 1);
+                for i = 1: length(n)
+                    idts = max(2, n(i) - srg) - n(i) + srg;
+                    idtt = max(2, n(i) - srg): min(nn - 1, n(i) + srg);
+                    idt = idts + 1: idts + length(idtt);
+                    rg(i, idt) = idtt;
+                end
             end
             opt.ref_flag = ref_flag;
             opt.rscl = 1;
             rscl = opt.rscl;
             opt.cfflag = 1; %%% 1 for pyramid, 2 for coarse and 3 for fine %%%
-            
-            %%% slice prep %%%
-            cs = zeros(length(rg), length(rt));
-            ss = cs;
-            mis = cs;
-            ks = cs;
-            locs = cell(length(rt), 1);
-            reft = ref(:, :, 1);
-            reft = imresize(reft, opt.rscl);
-            img = imresize(img, size(reft));
-            se = 5;
-            imgt = cc.anidenoise(cc, img, se);
-            imgt = imgt(se + 1: end - se, se + 1: end - se);
-            imgt = imgaussfilt(TVL1denoise(normalize(imgt), 0.4, 20) .^ 1, max(1, floor(min(size(reft)) / 100)));
-            imgt = imresize(imgt, size(reft));
+                        
+            imgp = img;
+            for i = 1: length(imgp)
+                %%% slice prep %%%
+                reft = ref(:, :, 1);
+                reft = imresize(reft, opt.rscl);
+                img1 = imresize(imgp{i}, size(reft));
+                se = 5;
+                imgt = cc.anidenoise(cc, img1, se);
+                imgt = imgt(se + 1: end - se, se + 1: end - se);
+                imgt = imgaussfilt(TVL1denoise(normalize(imgt), 0.4, 20) .^ 1, max(1, floor(min(size(reft)) / 100)));
+                imgt = imresize(imgt, size(reft));
+                imgp{i} = imgt;
+            end
             
             %%% calculate measures %%%
-            for i = 1: length(rg)
-                for j = 1: length(rt)
-                    bf = imresize(imgt, rt(j));
+            if length(imgp) == 1
+                cs = zeros(length(rg), length(rt));
+                ss = cs;
+                mis = cs;
+                ks = cs;
+                locs = cell(length(rt), 1);
+                for i = 1: length(rg)
+                    for j = 1: length(rt)
+                        bf = imresize(imgp{1}, rt(j));
+                        opt.bf = bf;
+                        [cst, sst, mit, locst, kst] = cc.mea_cal_unit(cc, ref(:, :, rg(i)), opt);
+                        cs(i, j) = cst;
+                        ss(i, j) = sst;
+                        mis(i, j) = mit;
+                        ks(i, j) = kst;
+                        locs{j}(i, :) = locst;
+                    end
+                end
+            else
+                cs = NaN(size(rg, 2), length(rt), size(rg, 1));
+                ss = cs;
+                mis = cs;
+                ks = cs;
+                locs = cell(length(rt), size(rg, 1));
+                locs = cellfun(@(x) NaN(size(rg, 2), 4), locs, 'uniformoutput', false);
+                
+                %%% random arrangement %%%
+                idt = randsample(numel(cs), round(numel(cs) / 5));
+                [i1, i2, i3] = ind2sub([size(rg, 1), size(rg, 2), length(rt)], idt);
+                count = 1;
+                denom = 10;
+                for i = 1: length(i1)
+                    bf = imresize(imgp{i1(i)}, rt(i3(i)));
                     opt.bf = bf;
-                    [cst, sst, mit, locst, kst] = cc.mea_cal_unit(cc, ref(:, :, rg(i)), opt);
-                    cs(i, j) = cst;
-                    ss(i, j) = sst;
-                    mis(i, j) = mit;
-                    ks(i, j) = kst;
-                    locs{j}(i, :) = locst;
+                    [cst, sst, mit, locst, kst] = cc.mea_cal_unit(cc, ref(:, :, rg(i1(i), i2(i))), opt);
+                    cs(i2(i), i3(i), i1(i)) = cst;
+                    ss(i2(i), i3(i), i1(i)) = sst;
+                    mis(i2(i), i3(i), i1(i)) = mit;
+                    ks(i2(i), i3(i), i1(i)) = kst;
+                    locs{i3(i), i1(i)}(i2(i), :) = locst;
+                    if i > count * length(i1) / denom
+                        disp([num2str(i), '/', num2str(length(i1)), ' done'])
+                        count = count + 1;
+                    end
                 end
             end
             
             tmp = ss;
-            tmp = max(tmp, [], 1);
+            tmp = nanmax(nanmean(tmp, 3), [], 1);
             [~, i] = max(tmp);
             gpy = rt(i);
-            loc = round(mean(locs{i}, 1));
+            loc = round(nanmean(cell2mat(locs(i, :)'), 1));
         end
         
         function idf = find_loc_coarse(cc, ref, img, ref_flag, n, gpy, loc, rsclp)
@@ -227,58 +295,90 @@ classdef cellcount
             if nargin < 4 || isempty(ref_flag)
                 ref_flag = 1;
             end
+            
+            img = cc.select_chan(img);
+            
             istep = 0.5; %%% mm %%%
             res = 0.01; %% mm %%
             istepf = istep / res;
             [nh, nw, nn] = size(ref);
+            srg = 10;
             if nargin < 5 || isempty(n)
-                rg = 2: istepf: nn - 1;
+                rg = repmat(2: istepf: nn - 1, length(img), 1);
             else
-                rg = max(2, n - 10): min(nn - 1, n + 10);
+                rg = NaN(length(n), 2 * srg + 1);
+                for i = 1: length(n)
+                    idts = max(2, n(i) - srg) - n(i) + srg;
+                    idtt = max(2, n(i) - srg): min(nn - 1, n(i) + srg);
+                    idt = idts + 1: idts + length(idtt);
+                    rg(i, idt) = idtt;
+                end
             end
             opt.ref_flag = ref_flag;
             opt.rscl = 1;
             lrt = opt.rscl / rsclp;
             opt.cfflag = 2; %%% 1 for pyramid, 2 for coarse and 3 for fine %%%
+            opt.loc = loc * lrt;
             
-            %%% slice prep %%%
-            cs = zeros(length(rg), 1);
+            imgp = img;
+            for i = 1: length(imgp)
+                %%% slice prep %%%
+                reft = ref(:, :, 1);
+%                 reft = imresize(reft, opt.rscl);
+                img1 = imresize(imgp{i}, size(reft));
+                se = 5;
+                imgt = cc.anidenoise(cc, img1, se);
+                imgt = imgt(se + 1: end - se, se + 1: end - se);
+                imgt = imgaussfilt(normalize(TVL1denoise(imgt, 0.4, 20)) .^ 2, max(1, floor(min(size(reft)) / 100)));
+                imgt = imresize(imgt, size(reft));
+                imgp{i} = imgt;
+            end
+                        
+            %%% calculate measures %%%
+            cs = zeros(size(rg));
             ss = cs;
             mis = cs;
             ks = cs;
-            reft = ref(:, :, 1);
-            img = imresize(img, size(reft));
-            se = 5;
-            imgt = cc.anidenoise(cc, img, se);
-            imgt = imgt(se + 1: end - se, se + 1: end - se);
-            imgt = imgaussfilt(normalize(TVL1denoise(imgt, 0.4, 20)) .^ 2, floor(min(size(reft)) / 100));
-            imgt = imresize(imgt, size(reft));
-            bf = imresize(imgt, gpy);
-            opt.bf = bf;
-            opt.loc = loc * lrt;
-            
-            %%% calculate measures %%%
-            for i = 1: length(rg)
-                [cst, sst, mit, ~, kst] = cc.mea_cal_unit(cc, ref(:, :, rg(i)), opt);
-                cs(i) = cst;
-                ss(i) = sst;
-                mis(i) = mit;
-                ks(i) = kst;
+            for k = 1: length(imgp)
+                imgt = imgp{k};
+                bf = imresize(imgt, gpy);
+                opt.bf = bf;
+                for i = 1: length(rg)
+                    [cst, sst, mit, ~, kst] = cc.mea_cal_unit(cc, ref(:, :, rg(k, i)), opt);
+                    cs(k, i) = cst;
+                    ss(k, i) = sst;
+                    mis(k, i) = mit;
+                    ks(k, i) = kst;
+                end
+                disp([num2str(k), '/', num2str(size(rg, 1)), ' done'])
             end
             
             tmp = cs + ss;
-            [~, i] = max(tmp);
-            idf = rg(i);
+            [~, i] = max(tmp, [], 2);
+            idf = zeros(size(rg, 1), 1);
+            for j = 1: size(rg, 1)
+                idf(j) = rg(j, i(j));
+            end
         end
         
         function [theta, gamma, ap, rloc, imgo] = find_loc_fine(cc, ref, img, ref_flag, n, gpy, loc, rtl, rsclp)
+            img = cc.select_chan(img);
+            opt.ref_flag = ref_flag;
+            opt.rscl = 1;
+            opt.cfflag = 3;
+            lrt = opt.rscl / rsclp;
+            opt.loc = lrt * loc;
+            if isempty(gcp('nocreate'))
+                parpool(feature('numCores'));
+            end
+
             %%% generate interpolation grid %%%
             [nh, nw, nf] = size(ref);
             mx = 2;
             astep = 0.5;
             apmx = 2;
-            mxtheta = atand(min(nf - n - apmx, n - 1 - apmx) / (nw / 2));
-            mxgamma = atand(min(nf - n - apmx, n - 1 - apmx) / (nh / 2));
+            mxtheta = atand(min(nf - n(end) - apmx, n(1) - 1 - apmx) / (nw / 2));
+            mxgamma = atand(min(nf - n(end) - apmx, n(1) - 1 - apmx) / (nh / 2));
             idtheta = max(-mx, -mxtheta): astep: min(mx, mxtheta); %%% left right %%%
             idgamma = max(-mx, -mxgamma): astep: min(mx, mxgamma); %%% up down %%%
             idap = -apmx: apmx;
@@ -287,79 +387,529 @@ classdef cellcount
             nap = length(idap);
             reft = permute(ref, [3, 1, 2]);
             reft = griddedInterpolant(double(reft));
-            opt.ref_flag = ref_flag;
-            opt.rscl = 1;
-            opt.cfflag = 3;
-            lrt = opt.rscl / rsclp;
-            opt.loc = lrt * loc;
             
-            %%% slice prep %%%
-            img = imresize(img, [nh, nw]);
-            imgt = imgaussfilt(normalize(TVL1denoise(img, 0.5, 40)) .^ 1, max(1, floor(min(size(reft.Values)) / 100)));
-            bf = imresize(imgt, gpy);
-            opt.bf = bf;
-            cs = zeros(nth * nga * nap, 1);
+            %%% calculate measure %%%
+            cs = NaN(nth * nga * nap, length(img));
             ss = cs;
             mis = cs;
             ks = cs;
-
+            ns = nth * nga * nap;
+            rlocs = NaN(ns, 4, length(img));
+            imgp = img;
+            
+            %%%% set up arrangement %%%%
+            nt = 2;
+            id = [repmat((1: size(cs, 1))', nt, 1), randsample(length(img), nt * size(cs, 1), true)];
             coord = cc.prep_coord(nh, nw);
-            imgs = zeros(nh, nw, length(idap) * length(idtheta) * length(idgamma));
-            for i = 1: nth
-                for j = 1: nga
-                    for k = 1: nap
-                        theta = idtheta(i);
-                        gamma = idgamma(j);
-                        ap = idap(k) + n;
-                        angles.theta = theta;
-                        angles.gamma = gamma;
-                        angles.ap = ap;
-                        
-                        coordf = cc.slice_coords(coord, angles, [nh, nw]);
-                        imgt = reft(rtl * (coordf(:, :, 3) - ap) + ap, coordf(:, :, 2), coordf(:, :, 1));
-                        count = (i - 1) * nga * nap + (j - 1) * nap + k;
-                        imgs(:, :, count) = imgt;
-                    end
+                
+            h = tic;
+            for ii = 1: length(imgp)
+                %%% slice prep %%%
+                img1 = imresize(imgp{ii}, [nh, nw]);
+                imgt = imgaussfilt(normalize(TVL1denoise(img1, 0.5, 40)) .^ 1, max(1, floor(min(size(reft.Values)) / 100)));
+                bf = imresize(imgt, gpy);
+                opt.bf = bf;
+                
+                idc = unique(id(id(:, 2) == ii, 1));
+                [i1, i2, i3] = ind2sub([nap, nga, nth], idc);
+                imgs = zeros(nh, nw, length(i1));
+                for i = 1: length(i1)
+                    theta = idtheta(i3(i));
+                    gamma = idgamma(i2(i));
+                    ap = idap(i1(i)) + n(ii);
+                    angles.theta = theta;
+                    angles.gamma = gamma;
+                    angles.ap = ap;
+                    
+                    coordf = cc.slice_coords(coord, angles, [nh, nw]);
+                    imgt = reft(rtl * (coordf(:, :, 3) - ap) + ap, coordf(:, :, 2), coordf(:, :, 1));
+                    imgs(:, :, i) = imgt;
                 end
-            end
-            
-            tic
-            ns = size(imgs, 3);
-            rlocs = zeros(ns, 4);
-            if isempty(gcp('nocreate'))
-                parpool(feature('numCores'));
-            end
-            parfor i = 1: ns
-                [cst, sst, mit, rloc, kst] = cc.mea_cal_unit(cc, imgs(:, :, i), opt);
-                cs(i) = cst;
-                ss(i) = sst;
-                mis(i) = mit;
-                rlocs(i, :) = rloc;
-                ks(i) = kst;
-                if mod(i, floor(ns / 10)) == 0
-                    disp(['done ', num2str(i), '/', num2str(ns)])
+                            
+                %%% calculate %%%
+                cstt = zeros(length(i1), 1);
+                sstt = cstt;
+                mistt = cstt;
+                kstt = cstt;
+                rlocstt = zeros(length(i1), 4);
+                parfor i = 1: length(i1)
+                    [cst, sst, mit, rloc, kst] = cc.mea_cal_unit(cc, imgs(:, :, i), opt);
+                    cstt(i) = cst;
+                    sstt(i) = sst;
+                    mistt(i) = mit;
+                    rlocstt(i, :) = rloc;
+                    kstt(i) = kst;
                 end
+                tt = toc(h);
+                disp(['done slice #', num2str(ii), '/', num2str(length(imgp)), ', ', num2str(tt), ' seconds'])
+                
+                %%% collect %%%
+                cs(idc, ii) = cstt;
+                ss(idc, ii) = sstt;
+                mis(idc, ii) = mistt;
+                ks(idc, ii) = kstt;
+                rlocs(idc, :, ii) = rlocstt;
             end
-            toc
-            
+                
             tmp = ks .* mis;
-            [~, ii] = max(tmp(:));
-            iu = floor(ii / (nga * nap));
-            ju = floor((ii - iu * nga * nap) / nap);
+            [~, ii] = nanmax(nanmax(tmp, [], 2));
+            iu = floor((ii - 1) / (nga * nap));
+            ju = floor((ii - iu * nga * nap - 1) / nap);
             ku = mod(ii - iu * nga * nap - ju * nap, nap);
             iu = iu + 1;
             ju = ju + 1;
             if ku == 0
                 ku = nap;
             end
-            
+                
             theta = idtheta(iu);
             gamma = idgamma(ju);
             ap = idap(ku);
-            rloc = rlocs(ii, :);
-            imgo = imgs(:, :, ii);
+            rloc = round(nanmean(rlocs(ii, :, :), 3));
+                
+            angles.theta = theta;
+            angles.gamma = gamma;
+            imgo = imgp;
+            for i = 1: length(imgp)
+                angles.ap = ap + n(i);
+                coordf = cc.slice_coords(coord, angles, [nh, nw]);
+                imgo{i} = reft(rtl * (coordf(:, :, 3) - angles.ap) + angles.ap, coordf(:, :, 2), coordf(:, :, 1));
+            end
         end
         
+        function coordf = slice_coords(coord, angles, sz)
+            theta = angles.theta;
+            gamma = angles.gamma;
+            ap = angles.ap;
+            nh = sz(1);
+            nw = sz(2);
+            
+            rx = rotx(gamma);
+            ry = roty(theta);
+            coordf = ry * rx * coord';
+            coordf = reshape(coordf', nh, nw, []);
+            coordf(:, :, 1) = coordf(:, :, 1) + (1 + nw) / 2;
+            coordf(:, :, 2) = coordf(:, :, 2) + (1 + nh) / 2;
+            coordf(:, :, 3) = coordf(:, :, 3) + ap;
+        end
+        
+        function [imgg, D, rloct, imrefs, coordfts] = regist(cc, tv, sl, angles, rloc, imro)
+            %%% estimate tv slices to be used %%%
+            rt = 0.00;
+            [nf, nh, nw] = size(tv);
+            coord = cc.prep_coord(nh, nw);
+            imgg = imro;
+            D = imro;
+            coordfts = imro;
+            imrefs = imro;
+            
+            for ii = 1: length(sl)
+                anglesuse = angles;
+                anglesuse.ap = angles.ap(ii);
+                coordft = cc.slice_coords(coord, anglesuse, [nh, nw]);
+                coordfts{ii} = coordft;
+                rg = [floor(min(min(coordft(:, :, 3)))), ceil(max(max(coordft(:, :, 3))))];
+                reft = griddedInterpolant(double(tv(rg(1): rg(2), :, :)));
+                coordf = coordft;
+                coordf(:, :, 3) = coordft(:, :, 3) - rg(1);
+                rloct = round(reshape(rloc, 2, 2)' * [(1 + rt), -rt; -rt, (1 + rt)])';
+                rloct = round(nh / size(imro{ii}, 1)) * rloct(:);
+                rloct(1) = max(1, rloct(1));
+                rloct(3) = max(1, rloct(3));
+                rloct(2) = min(nh, rloct(2));
+                rloct(4) = min(nw, rloct(4));
+                
+                %%% imcur %%%
+                sls = repmat(zeros(rloct(2) - rloct(1) + 1, rloct(4) - rloct(3) + 1), 1, 1, size(sl{ii}, 3));
+                for i = 1: size(sl{ii}, 3)
+                    sls(:, :, i) = imresize(sl{ii}(:, :, i), size(sls(:, :, 1)));
+                end
+                se = 5;
+                imcur = cc.anidenoise(cc, sls(:, :, 3), se);
+                imcur = imcur(se + 1: end - se, se + 1: end - se);
+                imcurt = normalize(imgaussfilt(TVL1denoise(normalize(imcur), 0.4, 20) .^ 1, max(1, floor(min(size(imcur)) / 100))));
+                
+                %%% imref %%%
+                imref = normalize(reft(coordf(:, :, 3), coordf(:, :, 2), coordf(:, :, 1)));
+                imref = cc.anidenoise(cc, imref, se);
+                imref = imref(se + 1: end - se, se + 1: end - se);
+                imrefs{ii} = imref;
+                mask = normalize(imref) > 0.05;
+                mask = imfill(mask, 'holes');
+                imreft = imref .* mask;
+                %%%% test exponent %%%%
+                imreft = normalize(imreft(rloct(1): rloct(2), rloct(3): rloct(4)));
+                %%%% apply exponent %%%%
+                imreft = normalize(imgaussfilt(TVL1denoise(normalize(imreft .^ 1), 0.4, 40), max(1, floor(min(size(imref)) / 400))));
+                
+                imcurt = cc.opt_exp(cc, imcurt, imreft);
+                imreft = cc.opt_exp(cc, imreft, imcurt);
+                
+                %%% sharpen images %%%
+                imreft = imsharpen(imreft, 'radius', 2, 'amount', 2);
+                imcurt = imsharpen(imcurt, 'radius', 2, 'amount', 2);
+                
+                imreft = max(0, imreft);
+                imcurt = max(0, imcurt);
+                
+                disp('doing registration')
+                try
+                    [Dt, img]=imregdemons(gpuArray(imcurt), gpuArray(imreft), 400, 'AccumulatedFieldSmoothing', 3, 'displaywaitbar', false);
+                    D = gather(D);
+                catch
+                    [Dt, img]=imregdemons(imcurt, imreft, 400, 'AccumulatedFieldSmoothing', 3, 'displaywaitbar', false);
+                end
+                disp('done registration')
+                
+                %%% collect %%%
+                D{ii} = Dt;
+                imggt = sls;
+                for i = 1: size(sl{ii}, 3)
+                    imggt(:, :, i) = cc.iminterpolate(sls(:, :, i), Dt(:, :, 2), Dt(:, :, 1));
+                end
+                imgg{ii} = imggt;
+            end
+        end
+        
+        function pl = cell_detect(cc, a, opt)
+            if nargin < 3 || isempty(opt)
+                vis = false;
+            else
+                vis = opt.vis;
+            end
+
+            a = cc.select_chan(a, 2);
+
+            pl = cell(length(a), 1);
+            for ii = 1: length(a)
+                %%% cell enhancing %%%
+                aa0 = normalize(double(a{ii}));
+                a0 = normalize(imgaussfilt(aa0, 0.5) .^ 2);
+                
+                nl = 2;
+                t = a0;
+                tt = imgaussfilt(t, 19);
+                for i = 1: nl
+                    t = abs(t - tt);
+                    tt = imgaussfilt(t, 49);
+                end
+                
+                t = normalize(t);
+                nl = 1;
+                for i = 1: nl
+                    t = normalize(imgaussfilt(double(cc.multi_otsu(cc, t)), 2));
+                end
+                a1 = t;
+                
+                nl = 2;
+                t = a1;
+                tt = imgaussfilt(t, 19);
+                for i = 1: nl
+                    t = abs(t - tt);
+                    tt = imgaussfilt(t, 49);
+                end
+                [gx, gy] = gradient(t);
+                a2 = normalize(imgaussfilt(gx .^ 2 + gy .^ 2, 2));%imgaussfilt(a1, 199) .^ 0.2);
+                a3 = sigmoid(a2, 1000, cc.intense_filter(a2, 1));
+                
+                t = normalize(a3);
+                nl = 1;
+                for i = 1: nl
+                    t = normalize(imgaussfilt(double(cc.multi_otsu(cc, t)), 2));
+                end
+                t1 = imgaussfilt(a3, 199);
+                a4 = normalize(t .* a1 .* a0 .* t1);
+                af = normalize(imgaussfilt(a4 .* (a4 > cc.intense_filter(a4, 0.2)), 2));
+                
+                %%% find cells %%%
+                mxs = imregionalmax(af);
+                [l, n] = bwlabeln(mxs);
+                [y, x] = find(mxs > 0);
+                pl{ii} = [y, x];
+            end
+            
+            %%% visualize %%%
+            if vis
+                figure(gcf)
+                nw = 4;
+                nh = ceil(length(sl) / nw);
+                count = 1;
+                for ii = 1: length(sl)
+                    subplot(nw, nh, count)
+                    imagesc(a)
+                    hold on
+                    for i = 1: length(y)
+                        plot(x(i), y(i), '.r')
+                    end
+                    hold off
+                end
+            end
+        end
+        
+        function plns = cell_transform(D, pl, rloc, opt)
+            plns = pl;
+            for ii = 1: length(pl)
+                [nh, nw, nd] = size(D{ii});
+                rh = nh / opt.ssl{ii}(1);
+                wh = nw / opt.ssl{ii}(2);
+                pltmp = round(pl{ii} .* [rh, wh]);
+                [x, y] = ndgrid(0: nh - 1, 0: nw - 1); % coordinate image
+                x_prime = x + D{ii}(:, :, 2); % updated x values (1st dim, rows)
+                y_prime = y + D{ii}(:, :, 1); % updated y values (2nd dim, cols)
+                
+                %%% second logdemons tranform %%%
+                pln = pltmp;
+                tmpx = round(x_prime(:));
+                tmpy = round(y_prime(:));
+                id1 = tmpx > 0 & tmpx <= nh;
+                id2 = tmpy > 0 & tmpy <= nw;
+                tmpx = tmpx(id1 & id2);
+                tmpy = tmpy(id1 & id2);
+                idt = sub2ind([nh, nw], tmpx, tmpy);
+                lidt = find(id1 & id2);
+                for i = 1: size(pltmp, 1)
+                    xt = pltmp(i, 1);
+                    yt = pltmp(i, 2);
+                    idc = sub2ind([nh, nw], xt, yt);
+                    [~, idu] = min(abs(idt - idc));
+                    idu = idu(1);
+                    [x, y] = ind2sub([nh,nw], lidt(idu));
+                    pln(i, :) = [x + rloc(1), y + rloc(3)];
+                end
+                plns{ii} = pln;
+            end
+        end
+        
+        function pl3 = cell3d(pl, coordf)
+            pl3 = pl;
+            for ii = 1: length(pl)
+                tmp1 = griddedInterpolant(coordf{ii}(:, :, 1));
+                tmp2 = griddedInterpolant(coordf{ii}(:, :, 2));
+                tmp3 = griddedInterpolant(coordf{ii}(:, :, 3));
+                pl3t = zeros(size(pl{ii}, 1), 3);
+                for i = 1: size(pl{ii}, 1)
+                    pl3t(i, :) = [tmp1(pl{ii}(i, :)), tmp2(pl{ii}(i, :)), tmp3(pl{ii}(i, :))];
+                end
+                pl3{ii} = pl3t;
+            end
+        end
+        
+        function save(cc, varargin)
+            fn = [cc.metadata.pname, filesep, 'cell_count_results.mat'];
+            if nargin < 2 || isempty(varargin)
+                save(fn, 'cc')
+            else
+                eval([inputname(2), ' = varargin{1}'])
+                save(fn, inputname(2), '-append')
+            end
+        end
+        
+        function cc = load(cc)
+            fn = [cc.metadata.pname, filesep, 'cell_count_results.mat'];
+            if exist(fn, 'file') == 2
+                load(fn, 'cc')
+            end
+        end
+        
+        function cc = load_slice(cc, file_name)
+            for i = 1: length(file_name)
+                fname = file_name{i};
+                slo = cc.load_slice_unit([cc.metadata.pname, fname]);
+                sl = cc.prep_slice(slo);
+                cc.metadata.slice{i} = sl;
+            end
+        end
+        
+        %% aux functions: lens locate %%
+        function [masks, plls] = lens_loc(cc, img, imr, rlocn)
+            nthres = 50;
+            ps = 5;
+            fthres = 10;
+            stthres = 0.5;
+            
+            masks = img;
+            plls = img;
+            for ii = 1: length(img)
+                sthres = size(img{ii}, 1) / 2;
+                t = imr{ii}(rlocn(1): rlocn(2), rlocn(3): rlocn(4));
+                %             t1 = cc.opt_exp(cc, t, img(:, :, 3));
+                %             t2 = cc.opt_exp(cc, img(:, :, 3), t);
+                t2 = normalize(imgaussfilt(normalize(TVL1denoise(normalize(img{ii}(:, :, 3)), 0.2, 40)), 5));
+                
+                %%%%%%% need to reduce nonrelevant regions %%%%%%%%%%
+                m1 = normalize(t) > 0.1;
+                m2 = t2 > 0.1;
+                r1 = imfill(m1 > 0.01, 'holes');
+                r2 = imfill(m2 > 0.01, 'holes');
+                r2r = padarray(r2, [ps, ps], 0, 'both');
+                r1t = padarray(r1, [ps, ps], 0, 'both');
+                r2t = padarray(t2, [ps, ps], 0, 'both');
+                r2t = imgaussfilt(r2t, 3);
+                rf1 = imerode(r1t, strel('disk', 5));
+                [l, n] = bwlabeln(rf1);
+                s = zeros(n, 1);
+                for i = 1: n
+                    tmp = l == i;
+                    s(i) = sum(tmp(:));
+                end
+                [~, id] = max(s);
+                rf1 = l == id;
+                bw = activecontour(r2t, rf1, 500, 'Chan-Vese', 'smoothfactor', 50);
+                bw = imerode(bw, strel('disk', 5));
+                bd1 = bwboundaries(bw);
+                id = bd1{1}(:, 1) < size(img{ii}, 1) / 2 + ps;
+                pt = bd1{1}(id, :);
+                rf1t = griddedInterpolant(double(r2r));
+                b1 = rf1t(pt);
+                s = sum(~b1);
+                pt = pt - [ps, ps];
+                mask = false(size(m2));
+            
+                if s > fthres
+                    %%% for open lesion %%%
+                    h1 = ~m2 & bw(ps + 1: end - ps, ps + 1: end - ps);
+                    %                 h1 = ~m2 & rf1(ps + 1: end - ps, ps + 1: end - ps);
+                    tmpt = false(size(h1));
+                    tmpt(sub2ind(size(tmpt), pt(:, 1), pt(:, 2))) = true;
+                    hh = tmpt + h1;
+                    [l, n] = bwlabeln(h1);
+                    h2 = false(size(tmpt));
+                    for i = 1: n
+                        tmp = l == i;
+                        tt = max(hh(tmp));
+                        if tt > 1
+                            h2 = h2 | tmp;
+                        end
+                    end
+                    
+                    [l, n] = bwlabeln(h2);
+                    s = zeros(n, 2);
+                    for i = 1: n
+                        tmp = l == i;
+                        [y, x] = find(tmp);
+                        s(i, :) = [mean(y), length(y)];
+                    end
+                    id1 = s(:, 2) > nthres;
+                    id2 = s(:, 1) < sthres;
+                    id1t = find(id1 & id2);
+                    [~, id] = max(s(id1t, 2));
+                    id = id1t(id);
+                    if ~isempty(id)
+                        mask = l == id;
+                    else
+                        mask = isnan(l);
+                    end
+                end
+                
+                %%% for incontinuous/inside opening component %%%
+                h1 = imerode(~m1 & rf1(ps + 1: end - ps, ps + 1: end - ps), strel('disk', 10));
+                h1 = imdilate(h1, strel('disk', 10));
+                %                 h2 = ~m2 & (r1 | r2);
+                h2 = ~m2 & r2;
+                hh = h1 + h2;
+                [l, n] = bwlabeln(h2);
+                s = zeros(n, 2);
+                for i = 1: n
+                    tmpt = l == i;
+                    tmp = hh(tmpt);
+                    nn = max(tmp(:));
+                    [y, x] = find(tmpt);
+                    s(i, 2: 3) = [mean(y), length(y)];
+                    if nn == 1
+                        s(i, 1) = 1;
+                    else
+                        st = sum(sum(tmp > 1)) / s(i, 3);
+                        if st < stthres
+                            s(i, 1) = 1;
+                        end
+                    end
+                end
+                id1 = s(:, 3) > nthres;
+                id2 = s(:, 2) < sthres;
+                id1t = find(s(:, 1) & id1 & id2);
+                [~, id] = max(s(id1t, 2));
+                id = id1t(id);
+                if ~isempty(id)
+                    mask2 = l == id;
+                else
+                    mask2 = isnan(l);
+                end
+                
+                %%% refine mask %%%
+                maskn = cc.mask_refine(mask2);
+                m = max(maskn(:));
+                s = zeros(m, 1);
+                for i = 1: m
+                    tmpt = maskn == i;
+                    tmp = hh(tmpt);
+                    nn = max(tmp(:));
+                    if nn == 1
+                        s(i) = 1;
+                    end
+                end
+                idt = find(s > 0);
+                s = zeros(length(idt), 1);
+                for i = 1: length(idt)
+                    tmp = maskn == idt(i);
+                    s(i) = sum(tmp(:));
+                end
+                [~, idtt] = max(s);
+                mask2 = maskn == idt(idtt);
+                mask = mask | mask2;
+                
+                %%% final output data %%%
+                [h, w] = find(mask);
+                pll = [h + rlocn(1), w + rlocn(3)];
+                masks{ii} = mask;
+                plls{ii} = pll;
+            end
+        end
+        
+        function model = lens_recon(cc, lensdata)
+            %%% has to have a series of slices with lens lesion %%%
+            % get the major blob %
+            img = lensdata.mask;
+            idp = cellfun(@(x) find(x == true), img, 'uniformoutput', false);
+            img = reshape(cell2mat(img), size(img{1}, 1), size(img{1}, 2), []);
+            [l, n] = bwlabeln(img);
+            s = zeros(n, 1);
+            for i = 1: n
+                tmp = l == i;
+                s(i) = sum(tmp(:));
+            end
+            [~, idt] = max(s);
+            imgot = l == idt;
+            imgo = reshape(imgot, size(imgot, 1), []);
+            imgo = mat2cell(imgo, size(imgo, 1), repmat(size(imgot, 2), 1, size(imgot, 3)));
+            idpo = cellfun(@(x) find(x == true), imgo, 'uniformoutput', false);
+            idf = cell(1, length(idpo));
+            for i = 1: length(idpo)
+                tmpa = idp{i};
+                tmpb = idpo{i};
+                [~, tmp] = intersect(tmpa, tmpb, 'stable');
+                idf{i} = tmp;
+            end
+            
+            pll3 = lensdata.point_lists_3d;
+            pll3f = cellfun(@(x, y) x(y, :), pll3, idf, 'uniformoutput', false);
+            
+            t = cell2mat(pll3f');
+            tt = t;
+            tt(:, 3) = t(:, 3) + mean(diff(cc.metadata.angles.ap)) * (rand(size(t(:, 3))) - 0.5);
+            maxDistance = 1;
+            pt = pointCloud(tt);
+            [model, inlierIndices] = pcfitcylinder(pt, maxDistance);
+%             pc = select(pt, inlierIndices);
+        end
+        
+        function maskn = mask_refine(mask)
+            t = bwdist(~mask);
+            tt = imhmin(-t, prctile(t(t > 0), 50));
+            maskn = watershed(tt);
+            maskn(~mask) = 0;
+        end
+        
+        %% aux functions: utility %%
         function [cs, ss, mui, rloc, ks] = mea_cal_unit(cc, ref, opt)
             bf = normalize(opt.bf);
             rscl = opt.rscl;
@@ -507,192 +1057,6 @@ classdef cellcount
             coord = [Xt(:), Yt(:), zeros(size(Xt(:)))];
         end
         
-        function coordf = slice_coords(coord, angles, sz)
-            theta = angles.theta;
-            gamma = angles.gamma;
-            ap = angles.ap;
-            nh = sz(1);
-            nw = sz(2);
-            
-            rx = rotx(gamma);
-            ry = roty(theta);
-            coordf = ry * rx * coord';
-            coordf = reshape(coordf', nh, nw, []);
-            coordf(:, :, 1) = coordf(:, :, 1) + (1 + nw) / 2;
-            coordf(:, :, 2) = coordf(:, :, 2) + (1 + nh) / 2;
-            coordf(:, :, 3) = coordf(:, :, 3) + ap;
-        end
-        
-        function [imgg, D, rloct, imref, coordft] = regist(cc, tv, sl, angles, rloc, imro)
-            %%% estimate tv slices to be used %%%
-            rt = 0.00;
-            [nf, nh, nw] = size(tv);
-            coord = cc.prep_coord(nh, nw);
-            coordft = cc.slice_coords(coord, angles, [nh, nw]);
-            rg = [floor(min(min(coordft(:, :, 3)))), ceil(max(max(coordft(:, :, 3))))];
-            reft = griddedInterpolant(double(tv(rg(1): rg(2), :, :)));
-            coordf = coordft;
-            coordf(:, :, 3) = coordft(:, :, 3) - rg(1);
-            rloct = round(reshape(rloc, 2, 2)' * [(1 + rt), -rt; -rt, (1 + rt)])';
-            rloct = round(nh / size(imro, 1)) * rloct(:);
-            rloct(1) = max(1, rloct(1));
-            rloct(3) = max(1, rloct(3));
-            rloct(2) = min(nh, rloct(2));
-            rloct(4) = min(nw, rloct(4));
-            
-            %%% imcur %%%
-            sls = repmat(zeros(rloct(2) - rloct(1) + 1, rloct(4) - rloct(3) + 1), 1, 1, size(sl, 3));
-            for i = 1: size(sl, 3)
-                sls(:, :, i) = imresize(sl(:, :, i), size(sls(:, :, 1)));
-            end
-            se = 5;
-            imcur = cc.anidenoise(cc, sls(:, :, 3), se);
-            imcur = imcur(se + 1: end - se, se + 1: end - se);
-            imcurt = normalize(imgaussfilt(TVL1denoise(normalize(imcur), 0.4, 20) .^ 1, max(1, floor(min(size(imcur)) / 100))));
-            
-            %%% imref %%%
-            imref = normalize(reft(coordf(:, :, 3), coordf(:, :, 2), coordf(:, :, 1)));
-            imref = cc.anidenoise(cc, imref, se);
-            imref = imref(se + 1: end - se, se + 1: end - se);
-            mask = normalize(imref) > 0.05;
-            mask = imfill(mask, 'holes');
-            imreft = imref .* mask;
-            %%%% test exponent %%%%
-            imreft = normalize(imreft(rloct(1): rloct(2), rloct(3): rloct(4)));
-            %%%% apply exponent %%%%
-            imreft = normalize(imgaussfilt(TVL1denoise(normalize(imreft .^ 1), 0.4, 40), max(1, floor(min(size(imref)) / 400))));
-            
-% %             [optimizer, metric] = imregconfig('multimodal');
-% %             optimizer.InitialRadius = 0.009;
-% %             optimizer.Epsilon = 1.5e-4;
-% %             optimizer.GrowthFactor = 1.02;
-% %             optimizer.MaximumIterations =100;
-% % %             imgt = imregister(imcurt, imreft, 'affine', optimizer, metric);
-% %             tf = imregtform(imcurt, imreft, 'affine', optimizer, metric);
-% %             
-% %             for i = 1: size(sls, 3)
-% %                 sls(:, :, i) = imwarp(sls(:, :, i), tf, 'outputview', imref2d(size(imreft)));
-% %             end
-% % %             imcurtt = imwarp(imcurt, tf, 'outputview', imref2d(size(imreft)));
-% %             imcurt = imwarp(imcur, tf, 'outputview', imref2d(size(imreft)));
-            imcurt = cc.opt_exp(cc, imcurt, imreft);
-            imreft = cc.opt_exp(cc, imreft, imcurt);
-            
-            %%% sharpen images %%%
-            imreft = imsharpen(imreft, 'radius', 2, 'amount', 2);
-            imcurt = imsharpen(imcurt, 'radius', 2, 'amount', 2);
-            
-            imreft = max(0, imreft);
-            imcurt = max(0, imcurt);
-                        
-            disp('doing registration')
-            try
-                [D, img]=imregdemons(gpuArray(imcurt), gpuArray(imreft), 400, 'AccumulatedFieldSmoothing', 3, 'displaywaitbar', false);
-                D = gather(D);
-            catch
-                [D, img]=imregdemons(imcurt, imreft, 400, 'AccumulatedFieldSmoothing', 3, 'displaywaitbar', false);
-            end
-            disp('done registration')
-            imgg = sls;
-            for i = 1: size(sl, 3)
-                imgg(:, :, i) = cc.iminterpolate(sls(:, :, i), D(:, :, 2), D(:, :, 1));
-            end
-        end
-        
-        function pl = cell_detect(cc, a, opt)
-            if nargin < 3 || isempty(opt)
-                vis = false;
-            else
-                vis = opt.vis;
-            end
-            
-            %%% cell enhancing %%%
-            a = normalize(double(a));
-            a0 = normalize(imgaussfilt(a, 0.5) .^ 2);
-            
-            nl = 2;
-            t = a0;
-            tt = imgaussfilt(t, 19);
-            for i = 1: nl
-                t = abs(t - tt);
-                tt = imgaussfilt(t, 49);
-            end
-            
-            t = normalize(t);
-            nl = 1;
-            for i = 1: nl
-                t = normalize(imgaussfilt(double(cc.multi_otsu(cc, t)), 2));
-            end
-            a1 = t;
-            
-            nl = 2;
-            t = a1;
-            tt = imgaussfilt(t, 19);
-            for i = 1: nl
-                t = abs(t - tt);
-                tt = imgaussfilt(t, 49);
-            end
-            [gx, gy] = gradient(t);
-            a2 = normalize(imgaussfilt(gx .^ 2 + gy .^ 2, 2));%imgaussfilt(a1, 199) .^ 0.2);
-            a3 = sigmoid(a2, 1000, cc.intense_filter(a2, 1));
-            
-            t = normalize(a3);
-            nl = 1;
-            for i = 1: nl
-                t = normalize(imgaussfilt(double(cc.multi_otsu(cc, t)), 2));
-            end
-            t1 = imgaussfilt(a3, 199);
-            a4 = normalize(t .* a1 .* a0 .* t1);
-            af = normalize(imgaussfilt(a4 .* (a4 > cc.intense_filter(a4, 0.2)), 2));
-            
-            %%% find cells %%%
-            mxs = imregionalmax(af);
-            [l, n] = bwlabeln(mxs);
-            [y, x] = find(mxs > 0);
-            pl = {[y, x]};
-            
-            %%% visualize %%%
-            if vis
-                figure(gcf)
-                imagesc(a)
-                hold on
-                for i = 1: length(y)
-                    plot(x(i), y(i), '.r')
-                end
-                hold off
-            end
-        end
-        
-        function pln = cell_transform(D, pl, rloc, opt)
-            [nh, nw, nd] = size(D);
-            rh = nh / opt.ssl(1);
-            wh = nw / opt.ssl(2);
-            pltmp = round(pl{1} .* [rh, wh]);
-            [x, y] = ndgrid(0: nh - 1, 0: nw - 1); % coordinate image
-            x_prime = x + D(:, :, 2); % updated x values (1st dim, rows)
-            y_prime = y + D(:, :, 1); % updated y values (2nd dim, cols)
-                        
-            %%% second logdemons tranform %%%
-            pln = pltmp;
-            tmpx = round(x_prime(:));
-            tmpy = round(y_prime(:));
-            id1 = tmpx > 0 & tmpx <= nh;
-            id2 = tmpy > 0 & tmpy <= nw;
-            tmpx = tmpx(id1 & id2);
-            tmpy = tmpy(id1 & id2);
-            idt = sub2ind([nh, nw], tmpx, tmpy);
-            lidt = find(id1 & id2);
-            for i = 1: size(pltmp, 1)
-                xt = pltmp(i, 1);
-                yt = pltmp(i, 2);
-                idc = sub2ind([nh, nw], xt, yt);
-                [~, idu] = min(abs(idt - idc));
-                idu = idu(1);
-                [x, y] = ind2sub([nh,nw], lidt(idu));
-                pln(i, :) = [x + rloc(1), y + rloc(3)];
-            end
-        end
-        
         function imgo = opt_exp(cc, imcur, imreft, lamb, iter, sz)
             if nargin < 4 || isempty(lamb)
                 lamb = 0.2;
@@ -722,140 +1086,6 @@ classdef cellcount
             imgo = normalize(imgaussfilt(normalize(TVL1denoise(normalize(imcur), lamb, iter)) .^ (1 + 0.2 * id), max(1, floor(min(size(imreft)) / 200))));
         end
         
-        function pl3 = cell3d(pl, coordf)
-            tmp1 = griddedInterpolant(coordf(:, :, 1));
-            tmp2 = griddedInterpolant(coordf(:, :, 2));
-            tmp3 = griddedInterpolant(coordf(:, :, 3));
-            pl3 = zeros(size(pl, 1), 3);
-            for i = 1: size(pl, 1)
-                pl3(i, :) = [tmp1(pl(i, :)), tmp2(pl(i, :)), tmp3(pl(i, :))];
-            end
-        end
-        
-        function save(cc)
-            fn = [cc.metadata.pname, filesep, 'cell_count_results.mat'];
-            save(fn, 'cc')
-        end
-        
-        function [mask, pll] = lens_loc(img, imr, rlocn)
-            nthres = 50;
-            ps = 5;
-            sthres = size(img, 1) / 2;
-            fthres = 10;
-            stthres = 0.5;
-            t = imr(rlocn(1): rlocn(2), rlocn(3): rlocn(4));
-%             t1 = cc.opt_exp(cc, t, img(:, :, 3));
-%             t2 = cc.opt_exp(cc, img(:, :, 3), t);
-            t2 = normalize(imgaussfilt(normalize(TVL1denoise(normalize(img(:, :, 3)), 0.2, 40)), 5));
-            
-            %%%%%%% need to reduce nonrelevant regions %%%%%%%%%%
-            m1 = normalize(t) > 0.1;
-            m2 = t2 > 0.1;
-            r1 = imfill(m1 > 0.01, 'holes');
-            r2 = imfill(m2 > 0.01, 'holes');
-            r2r = padarray(r2, [ps, ps], 0, 'both');
-            r1t = padarray(r1, [ps, ps], 0, 'both');
-            r2t = padarray(t2, [ps, ps], 0, 'both');
-            r2t = imgaussfilt(r2t, 3);
-            rf1 = imerode(r1t, strel('disk', 5));
-            [l, n] = bwlabeln(rf1);
-            s = zeros(n, 1);
-            for i = 1: n
-                tmp = l == i;
-                s(i) = sum(tmp(:));
-            end
-            [~, id] = max(s);
-            rf1 = l == id;
-            bw = activecontour(r2t, rf1, 500, 'Chan-Vese', 'smoothfactor', 50);
-            bw = imerode(bw, strel('disk', 5));
-            bd1 = bwboundaries(bw);
-            id = bd1{1}(:, 1) < size(img, 1) / 2 + ps;
-            pt = bd1{1}(id, :);
-            rf1t = griddedInterpolant(double(r2r));
-            b1 = rf1t(pt);
-            s = sum(~b1);
-            
-            if s < fthres
-                %%% for incontinuous/inside opening %%%
-                h1 = imerode(~m1 & rf1(ps: end - ps - 1, ps: end - ps - 1), strel('disk', 10));
-                h1 = imdilate(h1, strel('disk', 10));
-%                 h2 = ~m2 & (r1 | r2);
-                h2 = ~m2 & r2;
-                hh = h1 + h2;
-                [l, n] = bwlabeln(h2);
-                s = zeros(n, 2);
-                for i = 1: n
-                    tmpt = l == i;
-                    tmp = hh(tmpt);
-                    nn = max(tmp(:));
-                    [y, x] = find(tmpt);
-                    s(i, 2: 3) = [mean(y), length(y)];
-                    if nn == 1
-                        s(i, 1) = 1;
-                    else
-                        st = sum(sum(tmp > 1)) / s(i, 3);
-                        if st < stthres
-                            s(i, 1) = 1;
-                        end
-                    end
-                end
-                id1 = s(:, 3) > nthres;
-                id2 = s(:, 2) < sthres;
-                id1t = find(s(:, 1) & id1 & id2);
-                [~, id] = max(s(id1t, 2));
-                id = id1t(id);
-                if ~isempty(id)
-                    mask = l == id;
-                else
-                    mask = isnan(l);
-                end
-            else
-                %%% for open lesion %%%
-                h1 = ~m2 & bw(ps: end - ps - 1, ps: end - ps - 1);
-                tmpt = false(size(h1));
-                tmpt(sub2ind(size(tmpt), pt(:, 1), pt(:, 2))) = true;
-                hh = tmpt + h1;
-                [l, n] = bwlabeln(h1);
-                h2 = false(size(tmpt));
-                for i = 1: n
-                    tmp = l == i;
-                    tt = max(hh(tmp));
-                    if tt > 1
-                        h2 = h2 | tmp;
-                    end
-                end
-                
-                [l, n] = bwlabeln(h2);
-                s = zeros(n, 2);
-                for i = 1: n
-                    tmp = l == i;
-                    [y, x] = find(tmp);
-                    s(i, :) = [mean(y), length(y)];
-                end
-                id1 = s(:, 2) > nthres;
-                id2 = s(:, 1) < sthres;
-                id1t = find(id1 & id2);
-                [~, id] = max(s(id1t, 2));
-                id = id1t(id);
-                mask = l == id;
-            end
-            
-            [h, w] = find(mask);
-            pll = [h + rlocn(1), w + rlocn(3)];
-        end
-        
-        function locf = lens_recon(cc)
-            %%% has to have a series of slices with lens lesion %%%
-            n = length(cc.metadata.lens_mask);
-            pll3 = cc.metadata.lens_point_lists_3d;
-            t = zeros(n, 3);
-            for i = 1: n
-                ctr = mean(pll3{i}, 1);
-                t(i, :) = ctr;
-            end
-        end
-        
-        %% aux functions: utility %%
         function [img, xform] = klt2_reg(cc, imref, imcur, flag, maskc, pps)
             if nargin < 4
                 flag = 1;
