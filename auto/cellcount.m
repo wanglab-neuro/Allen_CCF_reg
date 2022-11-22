@@ -36,59 +36,58 @@ classdef cellcount
     
         function cell_count(cc)
             %%% parameters %%%
-            cc = cellcount();
             lens_flag = true;
             [file_name, path_name] = cc.data_info();
             cc.metadata.pname = path_name;
-            
+
             % %%%% if you want a pop up window, use this: %%%%
             % nlist = cc.section_list(length(file_name));
-            
+
             %%%% if not, put numbers in here (and don't run the above line): %%%%
             % nlist = [570: 8: 632];
             nlist = [678: 8: 742];
-            
+
             %%% initialize %%%
             [tv, av, st] = cc.load_ccf();
             [cc, ref] = cc.prep_ccf(tv);
-            
+
             %%% main loop per slice %%%
             cc = cc.load(cc);
-            
+
             if isempty(cc)
                 %%% load slices %%%
                 cc = cc.load_slice(cc, file_name);
-                
+
                 %%% pyramid size selection %%%
                 sl = cc.metadata.slice;
                 ref_flag = 1;
                 [gpy, loc, rsclp] = cc.find_loc_pyramid(cc, ref, sl, ref_flag, nlist);
-                
+
                 %%% coarse selection %%%
                 idf = cc.find_loc_coarse(cc, ref, sl, ref_flag, nlist, gpy, loc, rsclp);
-                
+
                 %%% fine/rotate selection %%%
                 rtl = size(tv, 2) / size(ref, 1);
                 cct = cellcount();
                 [theta, gamma, ap, rloc, imref] = cc.find_loc_fine(cct, ref, sl, ref_flag, idf, gpy, loc, rtl, rsclp);
-                
+
                 %%% nonrigid register %%%
                 angles = struct('theta', theta, 'gamma', gamma, 'ap', ap + idf);
                 [img, D, rlocn, imr, coordf] = cc.regist(cc, tv, sl, angles, rloc, imref);
-                
+
                 %%% Detect labeled neurons %%%
                 opt.vis = false;
                 % opt.vis = true;
                 pl = cc.cell_detect(cc, sl, opt);
-                
+
                 %%% transform detected neurons %%%
                 opt.stv = cellfun(@size, img, 'uniformoutput', false);
                 opt.ssl = cellfun(@size, sl, 'uniformoutput', false);
                 pln = cc.cell_transform(D, pl, rlocn, opt);
-                
+
                 %%% get 3d final point list %%%
                 pl3 = cc.cell3d(pln, coordf);
-                
+
                 %%% metadata compile %%%
                 metadata.slice = sl;
                 metadata.pyramid_size = gpy;
@@ -102,15 +101,15 @@ classdef cellcount
                 metadata.reg_ref_image = imr;
                 metadata.coordf = coordf;
                 metadata.fnames = file_name;
-                
+
                 %%% pass metadata %%%
                 cc.metadata = metadata;
                 cc.metadata.pname = path_name;
-                
+
                 %%% save data %%%
                 cc.save(cc);
             end
-            
+
             if lens_flag
                 %%% find lens lesion %%%
                 img = cc.metadata.reg_image;
@@ -123,15 +122,12 @@ classdef cellcount
                 pll = NaN;
                 pll3 = NaN;
             end
-            
+
             %%% lens data compile %%%
             lensdata.point_lists = pll;
             lensdata.point_lists_3d = pll3;
             lensdata.mask = mask;
             cc.save(cc, lensdata)
-            
-%             %% analyzing lens location %%
-%             model = cc.lens_recon(cc, lensdata);
         end
         
         %% aux functions: main procedure %%
@@ -865,7 +861,7 @@ classdef cellcount
             end
         end
         
-        function model = lens_recon(cc, lensdata)
+        function [model, pts, pti] = lens_recon(cc, lensdata)
             %%% has to have a series of slices with lens lesion %%%
             % get the major blob %
             img = lensdata.mask;
@@ -899,7 +895,8 @@ classdef cellcount
             maxDistance = 1;
             pt = pointCloud(tt);
             [model, inlierIndices] = pcfitcylinder(pt, maxDistance);
-%             pc = select(pt, inlierIndices);
+            pti = select(pt, inlierIndices);
+            pts = pt;
         end
         
         function maskn = mask_refine(mask)
@@ -907,6 +904,93 @@ classdef cellcount
             tt = imhmin(-t, prctile(t(t > 0), 50));
             maskn = watershed(tt);
             maskn(~mask) = 0;
+        end
+        
+        %% aux functions: rendering %%
+        function [bp, mask] = prep_renderer(cc, tv)
+            %%% get 3d brain for rendering %%%
+            if exist('ref', 'var')
+                bp = ref;
+            else
+                [~, bp] = prep_ccf(cc, tv, 0.25);
+            end
+            bp = single(bp);
+            bp = normalize(bp);
+            mask = bp > 0.1;
+            for i = 1: size(mask, 3)
+                mask(:, :, i) = imfill(mask(:, :, i), 'holes');
+            end
+            bp(~mask) = 0;
+        end
+            
+        function [bp, mx] = merge_cells(cc, bp, mask)
+            %%% add points &/or lens %%%
+            pl3 = cc.metadata.point_lists_3d;
+            scl = size(bp, 1) / 800;
+            [h, w, d] = size(bp);
+            stp = 0;
+            rds = 16;
+            mx = 5;
+            for i = 1: length(pl3)
+                pt = pl3{i};
+                ptr = pt;
+                ptr(:, 1: 2) = round(pt(:, 1: 2) * scl);
+                ptr(:, 3) = round(pt(:, 3)) + round(rand(size(ptr(:, 3))) * rds - rds / 2);
+                for j = 1: size(ptr, 1)
+                    tmp = mask(ptr(j, 1), ptr(j, 2), ptr(j, 3));
+                    if tmp
+                        bp = cc.fill_3d_neighbor(bp, ptr(j, 2), ptr(j, 1), ptr(j, 3), mx);
+%                         bp(max(1, ptr(j, 2) - stp): min(h, ptr(j, 2) + stp), max(1, ptr(j, 1) - stp): min(w, ptr(j, 1) + stp), max(1, ptr(j, 3) - stp): min(d, ptr(j, 3) + stp)) = 10;
+                    end
+                end
+            end
+            bp = normalize(bp);
+        end
+        
+        function bp = fill_3d_neighbor(bp, x, y, z, vl)
+            bp(x, y, z) = vl;
+%             bp(x - 1, y, z) = vl;
+%             bp(x + 1, y, z) = vl;
+%             bp(x, y - 1, z) = vl;
+%             bp(x, y + 1, z) = vl;
+            bp(x, y, z - 1) = vl;
+            bp(x, y, z + 1) = vl;
+            bp(x, y, z - 2) = vl;
+            bp(x, y, z + 2) = vl;
+        end
+        
+        function bpl = create_cyl_label(bp, model, scl)
+            [nh, nw, nn] = size(bp);
+%             sclt = [scl, scl, 1];
+            A = model.Orientation;
+            B = model.Parameters(1: 3);
+            C = model.Parameters(4: 6);
+            ctr = model.Center;
+            bmx = max(model.Height / 2, model.Radius);
+%             [X1, X2, X3] = ndgrid(1: round(nw / scl), 1: round(nh / scl), 1: nn);
+            [X1, X2, X3] = ndgrid(max(1, round(ctr(1) - bmx)): min(round(nw / scl), round(ctr(1) + bmx)), max(1, round(ctr(2) - bmx)): min(round(nh / scl), round(ctr(2) + bmx)), max(1, round(ctr(3) - 1.5 * bmx)): min(nn, round(ctr(3) + bmx)));
+            X1 = single(X1);
+            X2 = single(X2);
+            X3 = single(X3);
+            
+            %%% coarse selection %%%
+            tp = [X1(:), X2(:), X3(:)];
+            id2 = (tp - 1.5 * B) * A' >= 0;
+            id3 = (tp - C) * (-A') >= 0;
+            tp = tp(id2 & id3, :);
+            
+            %%% exact selection %%%
+            %%%% point-line distance %%%%
+            id1 = vecnorm(cross(tp - B, repmat(A, size(tp, 1), 1), 2), 2, 2) / norm(A) <= model.Radius;
+            tpf = tp(id1, :);
+            tpf(:, 1: 2) = round(tpf(:, 1: 2) * scl);
+            tpf = unique(tpf, 'rows');
+            
+            %%% create label %%%
+            bpl = zeros(size(bp));
+            for i = 1: size(tpf, 1)
+                bpl(tpf(i, 2), tpf(i, 1), tpf(i, 3)) = 1;
+            end
         end
         
         %% aux functions: utility %%
@@ -1588,20 +1672,109 @@ classdef cellcount
         
         %% aux functions: visualization %%
         function tp = image_fuse(imref, img, rloc)
+            if nargin < 3 || isempty(rloc)
+                rloc = [1; size(img, 1); 1; size(img, 2)];
+            end
             tp = zeros([size(imref), size(img, 3)]);
             tp(rloc(1): rloc(2), rloc(3): rloc(4), :) = img;
             tp =  imfuse(imref * 4, tp * 4, 'blend', 'Scaling', 'none');
         end
         
         function cell_overlay(img, pl)
-            figure(gcf)
-            clf
+%             figure(gcf)
+%             clf
             imagesc(img)
             hold on
             for i = 1: size(pl, 1)
                 plot(pl(i, 2), pl(i, 1), '.r')
             end
             hold off
+        end
+
+        function tp = lens_overlay(img, mask, rloc)
+            if nargin < 3 || isempty(rloc)
+                rloc = [1; size(img, 1); 1; size(img, 2)];
+            end
+            tpt = zeros([size(img(:, :, 1))]);
+            tpt(rloc(1): rloc(2), rloc(3): rloc(4), :) = mask;
+            tp =  imfuse(tpt, img, 'blend', 'Scaling', 'none');
+        end
+        
+        function vol = plot_3d_brain(bpm, mx)
+            ns = 256;
+            pmt = [1, 2, 3];
+            intensity = [0, mx / 200, 1];
+            alphat = [0.4, mx / 8, 0.8];
+            colort = [1, 1, 1; 0.8, 0.8, 0.8; 0, 1, 0];
+            qp = linspace(0, 1, ns);
+            alpham = interp1(intensity, alphat, qp)';
+            colorm = interp1(intensity, colort, qp);
+            set(gcf, 'renderer', 'opengl')
+            vol = volshow(permute(bpm, pmt), Colormap = colorm, Alphamap = alpham);
+            vol.Parent.BackgroundColor = 'k';
+            vol.Parent.BackgroundGradient = 'off';
+            tmp = [4, 4, 1];
+            vol.Transformation.A(1: 3, 1: 3) = diag(tmp);
+            vol.Parent.CameraPosition = [1100, 400, 670];
+            vol.Parent.CameraUpVector = [0, -1, 0];
+            vol.RenderingStyle = 'GradientOpacity';
+        end
+        
+        function plot_3d_brain_lens(cc, bp, bpl, mx, vol)
+            if nargin < 5 || isempty(vol)
+                vv = cc.plot_3d_brain(bp, mx);
+            else
+                vv = vol;
+            end
+            vv.OverlayData = bpl;
+            vv.OverlayAlphamap = 1;
+        end
+
+        function brain_animation(vol, fn, pos, upv, zoom)
+            if nargin < 3 || isempty(pos)
+                t = linspace(0, 2 * pi, 200)';
+                pos = [cos(-t) * 1100, zeros(200, 1), sin(-t) * 1100] + [425, 400, 670];
+            end
+            if nargin < 4 || isempty(upv)
+                upv = repmat([0, -1, 0], 1000, 1);
+            end
+            if nargin < 5 || isempty(zoom)
+                zoom = ones(1, 1000);
+            end
+
+            id = min([size(pos, 1), size(upv, 1), length(zoom)]);
+            pos = pos(1: id, :);
+            upv = upv(1: id, :);
+            zoom = zoom(1: id);
+
+%             v = VideoWriter(fn, 'MPEG-4');
+%             v = VideoWriter(fn, 'uncompressed avi');
+%             v.Quality = 100;
+%             v.FrameRate = 30;
+%             v.LosslessCompression = true;
+%             open(v)
+            for i = 1: id
+                vol.Parent.CameraPosition = pos(i, :);
+                vol.Parent.CameraUpVector = upv(i, :);
+                vol.Parent.CameraZoom = zoom(i);
+
+                I = getframe(vol.Parent.Parent);
+%                 writeVideo(v, I);
+                [indI, cm] = rgb2ind(I.cdata, 256);
+                if i == 1
+                    imwrite(indI, cm, fn, 'gif', Loopcount = inf, DelayTime = 0.025)
+                else
+                    imwrite(indI, cm, fn, 'gif', WriteMode = 'append', DelayTime = 0.025)
+                end
+            end
+%             close(v)
+        end
+        
+        function pc_lens_model(pts, pti, model)
+            pcshow(pts.Location, 'w')
+            hold on
+            pcshow(pti.Location, 'r', 'markersize', 10)
+            plot(model)
         end
     end
 end
