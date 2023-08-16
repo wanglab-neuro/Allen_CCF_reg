@@ -13,7 +13,8 @@
 <!-- 5. [Questions](#questions) -->
 
 ## Updates
-08/16/2023 Auto registration, neuron selection and lens reconstruction
+08/16/2023 Auto registration, neuron selection and lens reconstruction.\\
+Usage: Follow the scriopt /auto/cc_main.m; 
 
 09/20/2022 Semi-auto slice localization and auto cell detection uploaded [alpha test]
 
