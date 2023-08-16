@@ -13,6 +13,8 @@
 <!-- 5. [Questions](#questions) -->
 
 ## Updates
+08/16/2023 Auto registration, neuron selection and lens reconstruction
+
 09/20/2022 Semi-auto slice localization and auto cell detection uploaded [alpha test]
 
 7/1 Updates to procedure documentation
