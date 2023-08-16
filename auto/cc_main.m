@@ -101,14 +101,6 @@ lensdata = m.lensdata;
 [model, pts, pti] = cc.lens_recon(cc, lensdata);
 
 %% 3d rendering %%
-%%% try 3d plot %%%
-[bp, mask] = cc.prep_renderer(cc, tv);
-[bp, mx] = cc.merge_cells(cc, bp, mask);
-bpl = cc.create_cyl_label(bp, model, scl);
-
-vol = cc.plot_3d_brain(bp, mx);
-cc.plot_3d_brain_lens(cc, bp, bpl, mx, vol)
-
 %%% plot av %%%
 scl = 0.25;
 [~, refa] = cc.prep_ccf(av, scl);
@@ -119,73 +111,18 @@ bpal = cc.create_cyl_label(bpa, model, scl);
 vola = cc.plot_3d_brain(bpa, mx);
 cc.plot_3d_brain_lens(cc, bpa, bpal, mx, vola)
 
+%% get imaging target regions %%
+scl = 0.25;
+bpal = cc.target_regions(bpa, model, scl);
+[nf, nh, nw] = size(av);
+t = imresize3(bpal, [nh, nw, nf]);
+avt = permute(av, [2, 3, 1]);
+id = avt(t > 0);
+id = unique(id);
+tnames = st.name(id);
+
+%% visualizing utilities %%
 %%% write gif %%%
 fn = 'C:\Jinghao\research_temp\allenccf\Lens_track\G014\brain_cell.gif';
 cc.brain_animation(vol, fn)
-
-%% visualization for lab meeting %%
-%%% prepare proof of principle visualization %%%
-figure(1)
-clf
-figure(2)
-clf
-nn = length(cc.metadata.slice);
-for i = 1: nn
-    figure(1)
-    subplot(ceil(sqrt(nn)), ceil(sqrt(nn)), i)
-    sz = cc.metadata.section_location;
-    tp = cc.image_fuse(cc.metadata.reg_ref_image{i}, cc.metadata.reg_image{i}, sz);
-    imshow(tp)
-    figure(2)
-    subplot(ceil(sqrt(nn)), ceil(sqrt(nn)), i)
-    cc.cell_overlay(tp, cc.metadata.point_lists_new{i});
-end
-
-%%% cell overlay %%%
-figure(1)
-clf
-nn = length(cc.metadata.slice);
-for i = 1: nn
-    subplot(ceil(sqrt(nn)), ceil(sqrt(nn)), i)
-    sz = cc.metadata.section_location;
-end
-
-%%% plot old raw images %%%
-[file_name, path_name] = cc.data_info();
-figure(1)
-clf
-nn = length(cc.metadata.slice);
-for i = 1: nn
-    subplot(ceil(sqrt(nn)), ceil(sqrt(nn)), i)
-    tp1t = normalize(single(cc.load_slice_unit([cc.metadata.pname, file_name{i}])));
-    tp2 = cc.metadata.reg_ref_image{i};
-    tp1 = zeros(size(tp2, 1), size(tp2, 2), size(tp1t, 3));
-    for j = 1: size(tp1t, 3)
-        tp1(:, :, j) = imresize(tp1t(:, :, j), size(tp2));
-    end
-    tp = cc.image_fuse(tp2, tp1);
-    imshow(tp)
-end
-
-%%% lens track 2d images %%%
-figure(1)
-clf
-nn = length(cc.metadata.slice);
-for i = 1: nn
-    subplot(ceil(sqrt(nn)), ceil(sqrt(nn)), i)
-    sz = cc.metadata.section_location;
-    tp = cc.image_fuse(cc.metadata.reg_ref_image{i}, cc.metadata.reg_image{i}, sz);
-    tp = cc.lens_overlay(tp, lensdata.mask{i}, sz);
-    imshow(tp)
-end
-
-%%% plot lens cylinder model %%%
-figure(1)
-clf
-cc.pc_lens_model(pts, pti, model)
-
-
-%% pool %%
-
-
 

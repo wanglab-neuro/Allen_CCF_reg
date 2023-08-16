@@ -417,7 +417,7 @@ classdef cellcount
                     angles.gamma = gamma;
                     angles.ap = ap;
                     
-                    coordf = cc.slice_coords(coord, angles, [nh, nw]);
+                    coordf = cc.slice_coords(cc, coord, angles, [nh, nw]);
                     imgt = reft(rtl * (coordf(:, :, 3) - ap) + ap, coordf(:, :, 2), coordf(:, :, 1));
                     imgs(:, :, i) = imgt;
                 end
@@ -468,20 +468,20 @@ classdef cellcount
             imgo = imgp;
             for i = 1: length(imgp)
                 angles.ap = ap + n(i);
-                coordf = cc.slice_coords(coord, angles, [nh, nw]);
+                coordf = cc.slice_coords(cc, coord, angles, [nh, nw]);
                 imgo{i} = reft(rtl * (coordf(:, :, 3) - angles.ap) + angles.ap, coordf(:, :, 2), coordf(:, :, 1));
             end
         end
         
-        function coordf = slice_coords(coord, angles, sz)
+        function coordf = slice_coords(cc, coord, angles, sz)
             theta = angles.theta;
             gamma = angles.gamma;
             ap = angles.ap;
             nh = sz(1);
             nw = sz(2);
             
-            rx = rotx(gamma);
-            ry = roty(theta);
+            rx = cc.rotx(deg2rad(gamma));
+            ry = cc.roty(deg2rad(theta));
             coordf = ry * rx * coord';
             coordf = reshape(coordf', nh, nw, []);
             coordf(:, :, 1) = coordf(:, :, 1) + (1 + nw) / 2;
@@ -498,13 +498,14 @@ classdef cellcount
             D = imro;
             coordfts = imro;
             imrefs = imro;
+            ctof = 1;
             
             for ii = 1: length(sl)
                 anglesuse = angles;
                 anglesuse.ap = angles.ap(ii);
-                coordft = cc.slice_coords(coord, anglesuse, [nh, nw]);
+                coordft = cc.slice_coords(cc, coord, anglesuse, [nh, nw]);
                 coordfts{ii} = coordft;
-                rg = [floor(min(min(coordft(:, :, 3)))), ceil(max(max(coordft(:, :, 3))))];
+                rg = [floor(min(min(coordft(:, :, 3)))) - ctof, ceil(max(max(coordft(:, :, 3)))) + ctof];
                 reft = griddedInterpolant(double(tv(rg(1): rg(2), :, :)));
                 coordf = coordft;
                 coordf(:, :, 3) = coordft(:, :, 3) - rg(1);
@@ -966,7 +967,7 @@ classdef cellcount
             B = model.Parameters(1: 3);
             C = model.Parameters(4: 6);
             ctr = model.Center;
-            bmx = max(model.Height / 2, model.Radius);
+            bmx = max(model.Height, model.Radius);
 %             [X1, X2, X3] = ndgrid(1: round(nw / scl), 1: round(nh / scl), 1: nn);
             [X1, X2, X3] = ndgrid(max(1, round(ctr(1) - bmx)): min(round(nw / scl), round(ctr(1) + bmx)), max(1, round(ctr(2) - bmx)): min(round(nh / scl), round(ctr(2) + bmx)), max(1, round(ctr(3) - 1.5 * bmx)): min(nn, round(ctr(3) + bmx)));
             X1 = single(X1);
@@ -974,9 +975,43 @@ classdef cellcount
             X3 = single(X3);
             
             %%% coarse selection %%%
+            bscl = 0.5;
             tp = [X1(:), X2(:), X3(:)];
-            id2 = (tp - 1.5 * B) * A' >= 0;
+            id2 = (tp - (B + (bscl * (B - C)))) * A' >= 0;
             id3 = (tp - C) * (-A') >= 0;
+            tp = tp(id2 & id3, :);
+            
+            %%% exact selection %%%
+            %%%% point-line distance %%%%
+            id1 = vecnorm(cross(tp - B, repmat(A, size(tp, 1), 1), 2), 2, 2) / norm(A) <= model.Radius;
+            tpf = tp(id1, :);
+            tpf(:, 1: 2) = max(1, round(tpf(:, 1: 2) * scl));
+            tpf = unique(tpf, 'rows');
+            
+            %%% create label %%%
+            bpl = zeros(size(bp));
+            for i = 1: size(tpf, 1)
+                bpl(tpf(i, 2), tpf(i, 1), tpf(i, 3)) = 1;
+            end
+        end
+
+        function bpl = target_regions(bp, model, scl)
+            [nh, nw, nn] = size(bp);
+            A = model.Orientation;
+            B = model.Parameters(1: 3);
+            C = model.Parameters(4: 6);
+            ctr = model.Center;
+            bmx = max(model.Height, model.Radius);
+            [X1, X2, X3] = ndgrid(max(1, round(ctr(1) - bmx)): min(round(nw / scl), round(ctr(1) + bmx)), max(1, round(ctr(2) - bmx)): min(round(nh / scl), round(ctr(2) + bmx)), max(1, round(ctr(3) - 1.5 * bmx)): min(nn, round(ctr(3) + bmx)));
+            X1 = single(X1);
+            X2 = single(X2);
+            X3 = single(X3);
+            
+            %%% coarse selection %%%
+            bscl = 10 / model.Height;
+            tp = [X1(:), X2(:), X3(:)];
+            id2 = (tp - C) * A' >= 0;
+            id3 = (tp - (C + bscl * (C - B))) * (-A') >= 0;
             tp = tp(id2 & id3, :);
             
             %%% exact selection %%%
@@ -992,7 +1027,7 @@ classdef cellcount
                 bpl(tpf(i, 2), tpf(i, 1), tpf(i, 3)) = 1;
             end
         end
-        
+
         %% aux functions: utility %%
         function [cs, ss, mui, rloc, ks] = mea_cal_unit(cc, ref, opt)
             bf = normalize(opt.bf);
@@ -1670,6 +1705,22 @@ classdef cellcount
             end
         end
         
+        function R = rotx(angs)
+            nf = length(angs);
+            angs = reshape(angs(:), 1, 1, nf);
+            R = zeros(3, 3, nf);
+            R(1, 1, :) = 1;
+            R(2: end, 2: end, :) = [cos(angs), -sin(angs); sin(angs), cos(angs)];
+        end
+
+        function R = roty(angs)
+            nf = length(angs);
+            angs = reshape(angs(:), 1, 1, nf);
+            R = zeros(3, 3, nf);
+            R(2, 2, :) = 1;
+            R([1, 3], [1, 3], :) = [cos(angs), sin(angs); -sin(angs), cos(angs)];
+        end
+
         %% aux functions: visualization %%
         function tp = image_fuse(imref, img, rloc)
             if nargin < 3 || isempty(rloc)
