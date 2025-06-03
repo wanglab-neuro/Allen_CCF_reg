@@ -2,7 +2,7 @@
   <img src="./misc/demo_header.png" alt="slider" width="800px"/>
 </p>
 
-[# Constructing An Adult Orofacial Premotor Atlas In Allen Mouse CCF](https://www.biorxiv.org/content/10.1101/2021.02.18.431923v1.abstract). 
+**[Constructing An Adult Orofacial Premotor Atlas In Allen Mouse CCF](https://elifesciences.org/articles/67291).** 
 
 
 ## Contents
