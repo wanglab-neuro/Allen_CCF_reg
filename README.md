@@ -28,7 +28,7 @@
 * The `utils` directory contains function(s) that overide Matlab's. Place it on top of the path. 
 
 ## Usage
-0. Download the [Atlas.zip]([https://drive.google.com/file/d/1-s8XfBQZxoolgtlJvwWK4daDHjxN6Jaa/view?usp=sharing](https://drive.google.com/file/d/1MfAkbHQB3kQiCoyTqahhPAygm5WTpVxU/view?usp=sharing)). Unzip the archive and place `AllenAtlas.mat` in the `utils` folder.
+0. Download the [Atlas.zip](https://drive.google.com/file/d/1MfAkbHQB3kQiCoyTqahhPAygm5WTpVxU/view?usp=sharing). Unzip the archive and place `AllenAtlas.mat` in the `utils` folder.
 1. Run `cell_count.m` (add code directory to Matlab's path if calling `cell_count` from another directory, e.g., your data folder)
 2. In the atlas viewer, press keyboard arrows to switch between ML, DV and AP adjustment modes.
 3. Use the mouse's scrolling wheel to make required adjustments in each axis.  
